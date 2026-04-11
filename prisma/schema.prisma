@@ -1,0 +1,223 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model Asset {
+  id           String      @id @map("asset_id")
+  tag          String
+  name         String
+  type         String
+  subtype      String?
+  parentId     String?     @map("parent_id")
+  parent       Asset?      @relation("AssetHierarchy", fields: [parentId], references: [id])
+  children     Asset[]     @relation("AssetHierarchy")
+  area         String?
+  location     String?
+  manufacturer String?
+  model        String?
+  installDate  DateTime?   @map("install_date")
+  status       AssetStatus
+  criticality  Criticality
+
+  sensors        SensorMetadata[]
+  timeseriesRows Timeseries[]
+  failureEvents  FailureEvent[]
+  workOrders     WorkOrder[]
+  documents      Document[]
+
+  @@index([parentId])
+  @@index([area])
+  @@index([status])
+  @@map("assets")
+}
+
+enum AssetStatus {
+  OPERATING
+  MAINTENANCE
+  STANDBY
+}
+
+enum Criticality {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model SensorMetadata {
+  id         String     @id @map("sensor_id")
+  assetId    String     @map("asset_id")
+  asset      Asset      @relation(fields: [assetId], references: [id])
+  tag        String
+  name       String
+  sensorType SensorType @map("sensor_type")
+  unit       String
+  normalMin  Float?     @map("normal_min")
+  normalMax  Float?     @map("normal_max")
+  alarmLow   Float?     @map("alarm_low")
+  alarmHigh  Float?     @map("alarm_high")
+  tripLow    Float?     @map("trip_low")
+  tripHigh   Float?     @map("trip_high")
+  area       String?
+  location   String?
+
+  timeseries Timeseries[]
+
+  @@index([assetId])
+  @@index([sensorType])
+  @@map("sensor_metadata")
+}
+
+enum SensorType {
+  PRESSURE
+  TEMPERATURE
+  FLOW
+  LEVEL
+  VIBRATION
+  CURRENT
+  FREQUENCY
+  LOAD
+  CONCENTRATION
+}
+
+model Timeseries {
+  id          BigInt         @id @default(autoincrement())
+  timestamp   DateTime
+  sensorId    String         @map("sensor_id")
+  sensor      SensorMetadata @relation(fields: [sensorId], references: [id])
+  assetId     String         @map("asset_id")
+  asset       Asset          @relation(fields: [assetId], references: [id])
+  sensorType  SensorType     @map("sensor_type")
+  value       Float
+  unit        String
+  qualityFlag QualityFlag    @map("quality_flag")
+
+  @@index([sensorId, timestamp])
+  @@index([assetId, timestamp])
+  @@index([timestamp])
+  @@map("timeseries")
+}
+
+enum QualityFlag {
+  GOOD
+  BAD
+  INTERPOLATED
+  OFFLINE
+  UNCERTAIN
+}
+
+model FailureEvent {
+  id               String    @id @map("failure_event_id")
+  scenarioId       String?   @map("scenario_id")
+  assetId          String    @map("asset_id")
+  asset            Asset     @relation(fields: [assetId], references: [id])
+  tag              String
+  area             String
+  eventTimestamp   DateTime  @map("event_timestamp")
+  detectedBy       String?   @map("detected_by")
+  severity         Severity
+  safetyImpact     String?   @map("safety_impact")
+  failureMode      String    @map("failure_mode")
+  rootCause        String    @map("root_cause")
+  failureMechanism String?   @map("failure_mechanism")
+  immediateAction  String?   @map("immediate_action")
+  correctiveAction String?   @map("corrective_action")
+  productionLossBbl Float?   @map("production_loss_bbl")
+  downtimeHours    Float?    @map("downtime_hours")
+
+  workOrders WorkOrder[]
+
+  @@index([assetId])
+  @@index([eventTimestamp])
+  @@index([severity])
+  @@map("failure_events")
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  PLANNED
+}
+
+model WorkOrder {
+  id                String          @id @map("work_order_id")
+  failureEventId    String?         @map("failure_event_id")
+  failureEvent      FailureEvent?   @relation(fields: [failureEventId], references: [id])
+  assetId           String          @map("asset_id")
+  asset             Asset           @relation(fields: [assetId], references: [id])
+  tag               String
+  area              String
+  workOrderType     WorkOrderType   @map("work_order_type")
+  priority          Priority
+  status            WorkOrderStatus
+  raisedDate        DateTime        @map("raised_date")
+  scheduledDate     DateTime?       @map("scheduled_date")
+  completedDate     DateTime?       @map("completed_date")
+  reportedBy        String?         @map("reported_by")
+  assignedTo        String?         @map("assigned_to")
+  supervisor        String?
+  workDescription   String          @map("work_description")
+  findings          String?
+  actionsTaken      String?         @map("actions_taken")
+  partsReplaced     String?         @map("parts_replaced")
+  laborHours        Float?          @map("labor_hours")
+  downtimeHours     Float?          @map("downtime_hours")
+  productionLossBbl Float?          @map("production_loss_bbl")
+  scenarioId        String?         @map("scenario_id")
+
+  @@index([assetId])
+  @@index([status])
+  @@index([raisedDate])
+  @@map("work_orders")
+}
+
+enum WorkOrderType {
+  CORRECTIVE
+  PREVENTIVE
+  EMERGENCY
+  INSPECTION
+  MODIFICATION
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+  EMERGENCY
+  PLANNED
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DEFERRED
+}
+
+model Document {
+  id         String    @id @map("doc_id")
+  assetId    String?   @map("asset_id")
+  asset      Asset?    @relation(fields: [assetId], references: [id])
+  docType    String    @map("doc_type")
+  title      String
+  revision   String?
+  author     String?
+  approvedBy String?   @map("approved_by")
+  issueDate  DateTime? @map("issue_date")
+  content    String
+  embedding  Unsupported("vector(1536)")?
+
+  @@index([assetId])
+  @@index([docType])
+  @@map("documents")
+}
