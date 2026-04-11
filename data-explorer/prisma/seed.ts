@@ -8,7 +8,7 @@ dotenv.config()
 
 const prisma = new PrismaClient()
 
-const DATA_DIR = path.join(__dirname, '../data')
+const DATA_DIR = path.join(__dirname, '../../data')
 
 function csvPath(filename: string) {
   return path.join(DATA_DIR, filename)
