@@ -92,18 +92,19 @@ docker ps | grep hackazona_db
 npx prisma migrate deploy
 ```
 
-### 6. Obtain the data files
+### 6. Pull data files (Git LFS)
 
-The CSV source files are not included in the repo (the timeseries file is 220 MB). Place the following files in a `data/` directory at the project root before seeding:
+The CSV and document files are stored in Git LFS. After cloning, pull them down:
 
+```bash
+git lfs pull
 ```
-data/
-├── assets.csv
-├── sensor_metadata.csv
-├── timeseries.csv          # ~3.07M rows, ~220 MB
-├── failure_events.csv
-├── maintenance_history.csv
-└── documents.csv
+
+This downloads the `data/` directory (~230 MB total). You need Git LFS installed — get it from [git-lfs.github.com](https://git-lfs.github.com) or via Homebrew:
+
+```bash
+brew install git-lfs
+git lfs install
 ```
 
 ### 7. Seed the database
