@@ -15,6 +15,7 @@ CORROSION_BASELINE = {
 def check_corrosion(
     asset_id: str,
     current_temp: float,
+    overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """
     Corrosion remaining life detection based on live temp + static inspection data.
@@ -23,6 +24,14 @@ def check_corrosion(
     baseline = CORROSION_BASELINE.get(asset_id)
     if baseline is None:
         return None
+
+    # Apply simulator overrides on top of the baseline (non-destructive copy)
+    if overrides:
+        baseline = baseline.copy()
+        for key in ("coating_failure_pct", "wall_thickness_mm", "remaining_allowance_mm",
+                    "base_corrosion_rate_mm_per_year"):
+            if key in overrides:
+                baseline[key] = float(overrides[key])
 
     base_rate = baseline["base_corrosion_rate_mm_per_year"]
     remaining_allowance = baseline["remaining_allowance_mm"]
