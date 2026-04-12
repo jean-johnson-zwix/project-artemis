@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Request
 
 from db import SessionLocal
 from layers.context import gather_context
+from layers.reasoning import run_reasoning
 from models import DetectionRecord
 
 logger = logging.getLogger(__name__)
@@ -25,9 +26,7 @@ def _process_detection(detection: DetectionRecord) -> None:
             len(context.sensor_trend),
             len(context.relevant_docs),
         )
-        # Layer 3 wired here next:
-        # from layers.reasoning import run_reasoning
-        # run_reasoning(detection, context, db)
+        run_reasoning(detection, context, db)
     except Exception as exc:
         logger.error("Layer 2 failed for detection %s: %s", detection.detection_id, exc, exc_info=True)
     finally:

@@ -215,10 +215,28 @@ model Detection {
   area          String
   detectionData Json     @map("detection_data")
 
+  insight       Insight?
+
   @@index([assetId])
   @@index([detectionType])
   @@index([detectedAt])
   @@map("detections")
+}
+
+model Insight {
+  id                 String    @id @default(uuid()) @map("insight_id") @db.Uuid
+  detectionId        String    @unique @map("detection_id") @db.Uuid
+  detection          Detection @relation(fields: [detectionId], references: [id])
+  what               String
+  why                String
+  evidence           Json
+  confidence         String
+  remainingLifeYears Float?    @map("remaining_life_years")
+  recommendedActions Json      @map("recommended_actions")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([detectionId])
+  @@map("insights")
 }
 
 model Document {
