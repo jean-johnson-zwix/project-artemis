@@ -9,7 +9,8 @@ An industrial asset monitoring and AI platform for offshore oil & gas operations
 ```
 hackazona/
 ├── data/                  # Source CSVs + documents (Git LFS, ~230 MB)
-└── data-explorer/         # Next.js web app — see data-explorer/README.md
+├── data-explorer/         # Next.js web app — see data-explorer/README.md
+└── backend/               # FastAPI detection engine — see backend/README.md
 ```
 
 ## Packages
@@ -17,6 +18,7 @@ hackazona/
 | Package | Description |
 |---|---|
 | [`data-explorer`](./data-explorer/README.md) | Next.js dashboard with sensor charts, anomaly detection, maintenance kanban, and RAG chat |
+| [`backend`](./backend/README.md) | FastAPI Layer 1 detection engine — ingests sensor readings, runs anomaly/corrosion/divergence detection |
 
 ---
 
