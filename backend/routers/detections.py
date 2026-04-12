@@ -16,6 +16,7 @@ router = APIRouter()
 
 class ResolveRequest(BaseModel):
     resolved_by: str = "operator"
+    resolution_notes: str | None = None
 
 
 def _process_detection(detection: DetectionRecord) -> None:
@@ -64,7 +65,7 @@ def resolve_alert(detection_id: str, body: ResolveRequest):
     """
     db = SessionLocal()
     try:
-        updated = resolve_detection(db, detection_id, body.resolved_by)
+        updated = resolve_detection(db, detection_id, body.resolved_by, body.resolution_notes)
     finally:
         db.close()
 

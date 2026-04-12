@@ -40,6 +40,7 @@ from models import (
     NodeSelection,
     PageIndexNode,
     ParsedInspectionValues,
+    PastResolution,
     RelevantDoc,
     SensorReading,
 )
@@ -64,6 +65,7 @@ def gather_context(detection: DetectionRecord, db: Session) -> DetectionContext:
     relevant_docs = _search_documents(db, detection_type, asset_id, detection.asset_name)
     last_work_order = _fetch_last_work_order(db, asset_id)
     last_inspection_date = _fetch_last_inspection_date(db, asset_id)
+    past_resolutions = _fetch_past_resolutions(db, asset_id, detection_type)
 
     parsed_inspection_values = None
     if detection_type == "CORROSION_THRESHOLD":
@@ -83,6 +85,7 @@ def gather_context(detection: DetectionRecord, db: Session) -> DetectionContext:
         last_inspection_date=last_inspection_date,
         last_work_order=last_work_order,
         parsed_inspection_values=parsed_inspection_values,
+        past_resolutions=past_resolutions,
     )
 
 
@@ -455,6 +458,39 @@ def _fetch_last_inspection_date(db: Session, asset_id: str) -> datetime | None:
     ).fetchone()
 
     return row[0] if row else None
+
+
+def _fetch_past_resolutions(
+    db: Session, asset_id: str, detection_type: str, limit: int = 5
+) -> list[PastResolution]:
+    """
+    Return the last `limit` resolved detections of the same type for this asset,
+    newest first. Only includes detections that were explicitly resolved with notes.
+    """
+    rows = db.execute(
+        text(
+            "SELECT detection_id, detected_at, severity, resolution_notes, resolved_by, resolved_at "
+            "FROM detections "
+            "WHERE asset_id = :aid "
+            "  AND detection_type = :dtype "
+            "  AND resolved_at IS NOT NULL "
+            "ORDER BY resolved_at DESC "
+            "LIMIT :lim"
+        ),
+        {"aid": asset_id, "dtype": detection_type, "lim": limit},
+    ).fetchall()
+
+    return [
+        PastResolution(
+            detection_id=str(r[0]),
+            detected_at=r[1],
+            severity=r[2],
+            resolution_notes=r[3],
+            resolved_by=r[4],
+            resolved_at=r[5],
+        )
+        for r in rows
+    ]
 
 
 def _parse_inspection_values(content: str) -> ParsedInspectionValues | None:

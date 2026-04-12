@@ -200,6 +200,7 @@ def _maybe_fire(
             "SELECT 1 FROM detections "
             "WHERE asset_id = :aid AND detection_type = :type "
             "AND detected_at > now() - interval '1 hour' * :hours "
+            "AND resolved_at IS NULL "
             "LIMIT 1"
         ),
         {"aid": asset_id, "type": detection_type, "hours": cooldown},

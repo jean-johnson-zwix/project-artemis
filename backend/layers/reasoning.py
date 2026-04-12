@@ -19,7 +19,7 @@ from uuid import UUID
 from openai import AzureOpenAI
 from sqlalchemy.orm import Session
 
-from db import write_insight
+from db import save_discord_thread_id, write_insight
 from models import Confidence, DetectionContext, DetectionRecord, Insight
 from notifications import send_discord_alert, send_teams_alert
 
@@ -62,11 +62,17 @@ def run_reasoning(
     write_insight(db, insight, context.relevant_docs)
     logger.info("Insight written for detection %s", detection.detection_id)
 
-    for send_fn in (send_teams_alert, send_discord_alert):
-        try:
-            send_fn(detection, insight)
-        except Exception as exc:
-            logger.error("%s failed for detection %s: %s", send_fn.__name__, detection.detection_id, exc)
+    try:
+        send_teams_alert(detection, insight)
+    except Exception as exc:
+        logger.error("send_teams_alert failed for detection %s: %s", detection.detection_id, exc)
+
+    try:
+        thread_id = send_discord_alert(detection, insight)
+        if thread_id:
+            save_discord_thread_id(db, str(detection.detection_id), thread_id)
+    except Exception as exc:
+        logger.error("send_discord_alert failed for detection %s: %s", detection.detection_id, exc)
 
     return insight
 
@@ -168,6 +174,17 @@ def _build_prompt(detection: DetectionRecord, context: DetectionContext) -> str:
         for i, doc in enumerate(context.relevant_docs, 1):
             lines.append(f"  [{i}] {doc.title} ({doc.doc_type})")
             lines.append(f"      {doc.snippet}")
+            lines.append("")
+
+    # --- Past resolutions ---
+    if context.past_resolutions:
+        lines.append("PAST RESOLUTIONS (same asset, same detection type)")
+        for r in context.past_resolutions:
+            resolved_str = r.resolved_at.strftime("%Y-%m-%d") if r.resolved_at else "unknown date"
+            detected_str = r.detected_at.strftime("%Y-%m-%d") if r.detected_at else "unknown date"
+            lines.append(f"  Detected: {detected_str} | Severity: {r.severity} | Resolved: {resolved_str} by {r.resolved_by or 'unknown'}")
+            if r.resolution_notes:
+                lines.append(f"  Resolution: {r.resolution_notes}")
             lines.append("")
 
     return "\n".join(lines)

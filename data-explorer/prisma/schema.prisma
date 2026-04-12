@@ -214,8 +214,10 @@ model Detection {
   assetName     String    @map("asset_name")
   area          String
   detectionData Json      @map("detection_data")
-  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz()
-  resolvedBy    String?   @map("resolved_by")
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamptz()
+  resolvedBy      String?   @map("resolved_by")
+  resolutionNotes String?   @map("resolution_notes")
+  discordThreadId String?   @map("discord_thread_id")
 
   insight       Insight?
 

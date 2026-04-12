@@ -78,7 +78,7 @@ def write_detection(db: Session, record: DetectionRecord) -> None:
         update_asset_status(db, record.asset_id, new_status)
 
 
-def resolve_detection(db: Session, detection_id: str, resolved_by: str) -> dict | None:
+def resolve_detection(db: Session, detection_id: str, resolved_by: str, resolution_notes: str | None = None) -> dict | None:
     """
     Mark a detection as resolved and restore the asset to OPERATING status.
 
@@ -90,12 +90,12 @@ def resolve_detection(db: Session, detection_id: str, resolved_by: str) -> dict 
     result = db.execute(
         text(
             "UPDATE detections "
-            "SET resolved_at = :now, resolved_by = :by "
+            "SET resolved_at = :now, resolved_by = :by, resolution_notes = :notes "
             "WHERE detection_id = CAST(:id AS uuid) "
             "  AND resolved_at IS NULL "
-            "RETURNING asset_id, asset_tag, asset_name, area, detection_type, severity"
+            "RETURNING asset_id, asset_tag, asset_name, area, detection_type, severity, discord_thread_id"
         ),
-        {"now": _dt.datetime.now(_dt.timezone.utc), "by": resolved_by, "id": detection_id},
+        {"now": _dt.datetime.now(_dt.timezone.utc), "by": resolved_by, "notes": resolution_notes, "id": detection_id},
     )
     row = result.fetchone()
     db.commit()
@@ -103,7 +103,7 @@ def resolve_detection(db: Session, detection_id: str, resolved_by: str) -> dict 
     if row is None:
         return None
 
-    asset_id, asset_tag, asset_name, area, detection_type, severity = row
+    asset_id, asset_tag, asset_name, area, detection_type, severity, discord_thread_id = row
 
     # Restore asset to OPERATING only when no other active detections remain
     remaining = db.execute(
@@ -119,12 +119,93 @@ def resolve_detection(db: Session, detection_id: str, resolved_by: str) -> dict 
     return {
         "detection_id": detection_id,
         "resolved_by": resolved_by,
+        "resolution_notes": resolution_notes,
         "asset_id": asset_id,
         "asset_tag": asset_tag,
         "asset_name": asset_name,
         "area": area,
         "detection_type": detection_type,
         "severity": severity,
+        "discord_thread_id": discord_thread_id,
+    }
+
+
+def save_discord_thread_id(db: Session, detection_id: str, thread_id: str) -> None:
+    """Store the Discord thread ID created for an alert."""
+    db.execute(
+        text("UPDATE detections SET discord_thread_id = :tid WHERE detection_id = CAST(:id AS uuid)"),
+        {"tid": thread_id, "id": detection_id},
+    )
+    db.commit()
+
+
+def get_detection_context_for_thread(db: Session, thread_id: str) -> dict | None:
+    """
+    Return detection + insight data for a Discord thread, or None if unknown.
+    Used by the Discord bot to answer operator questions in alert threads.
+    """
+    row = db.execute(
+        text("""
+            SELECT d.detection_id, d.detected_at, d.detection_type, d.severity,
+                   d.asset_name, d.asset_tag, d.area,
+                   i.what, i.why, i.evidence, i.confidence,
+                   i.remaining_life_years, i.recommended_actions, i.relevant_docs
+            FROM detections d
+            LEFT JOIN insights i ON i.detection_id = d.detection_id
+            WHERE d.discord_thread_id = :tid
+        """),
+        {"tid": thread_id},
+    ).fetchone()
+
+    if row is None:
+        return None
+
+    (detection_id, detected_at, detection_type, severity,
+     asset_name, asset_tag, area,
+     what, why, evidence, confidence,
+     remaining_life, recommended_actions, relevant_docs) = row
+
+    # Fetch past resolutions for the same asset + detection type
+    past_rows = db.execute(
+        text(
+            "SELECT detection_id, detected_at, severity, resolution_notes, resolved_by, resolved_at "
+            "FROM detections "
+            "WHERE asset_id = (SELECT asset_id FROM detections WHERE discord_thread_id = :tid) "
+            "  AND detection_type = :dtype "
+            "  AND resolved_at IS NOT NULL "
+            "ORDER BY resolved_at DESC LIMIT 5"
+        ),
+        {"tid": thread_id, "dtype": detection_type},
+    ).fetchall()
+
+    past_resolutions = [
+        {
+            "detection_id": str(r[0]),
+            "detected_at": str(r[1]),
+            "severity": r[2],
+            "resolution_notes": r[3],
+            "resolved_by": r[4],
+            "resolved_at": str(r[5]),
+        }
+        for r in past_rows
+    ]
+
+    return {
+        "detection_id": str(detection_id),
+        "detected_at": detected_at,
+        "detection_type": detection_type,
+        "severity": severity,
+        "asset_name": asset_name,
+        "asset_tag": asset_tag,
+        "area": area,
+        "what": what,
+        "why": why,
+        "evidence": evidence if isinstance(evidence, list) else [],
+        "confidence": confidence,
+        "remaining_life_years": remaining_life,
+        "recommended_actions": recommended_actions if isinstance(recommended_actions, list) else [],
+        "relevant_docs": relevant_docs if isinstance(relevant_docs, list) else [],
+        "past_resolutions": past_resolutions,
     }
 
 

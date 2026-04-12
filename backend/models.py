@@ -97,6 +97,15 @@ class RelevantDoc(BaseModel):
     tree_path: str | None = None  # breadcrumb from PageIndex navigation, e.g. "Section 3 › 3.2 Wall Thickness"
 
 
+class PastResolution(BaseModel):
+    detection_id: str
+    detected_at: datetime
+    severity: str
+    resolution_notes: str | None
+    resolved_by: str | None
+    resolved_at: datetime | None
+
+
 class DetectionContext(BaseModel):
     detection_id: UUID
     sensor_trend: list[SensorReading]
@@ -104,6 +113,7 @@ class DetectionContext(BaseModel):
     last_inspection_date: datetime | None
     last_work_order: dict[str, Any] | None
     parsed_inspection_values: ParsedInspectionValues | None
+    past_resolutions: list[PastResolution] = []
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +149,6 @@ PageIndexNode.model_rebuild()
 
 
 class NodeSelection(BaseModel):
-    """Instructor-enforced output of tree navigation — which node is most relevant."""
     node_id: str
     tree_path: str = Field(description="Human-readable breadcrumb, e.g. 'Inspection Report › Section 3 › 3.2 Wall Thickness'")
     start_index: int
@@ -148,7 +157,6 @@ class NodeSelection(BaseModel):
 
 
 class CandidateSelection(BaseModel):
-    """Instructor-enforced output of wiki index selector — which doc_ids to tree-search."""
     doc_ids: list[str] = Field(description="2-3 most relevant doc_ids from the wiki index, ordered by relevance")
     reasoning: str = Field(description="One sentence explaining the selection")
 
