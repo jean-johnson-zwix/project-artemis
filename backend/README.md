@@ -43,6 +43,52 @@ uvicorn main:app --reload --port 8000
 
 API docs: `http://localhost:8000/docs`
 
+### Streamlit Demo Dashboard
+
+You can run the backend demo dashboard in Streamlit:
+
+```bash
+cd backend
+streamlit run dashboard.py
+```
+
+By default it points at `http://localhost:8000` and uses `DATABASE_URL` from `.env`.
+The dashboard focuses on two demo flows:
+
+1. Monitor
+
+- shows only assets that support the demo simulation scenarios
+- lets you trigger a scenario from the header row using:
+  - scenario dropdown
+  - asset dropdown filtered to valid assets for that scenario
+  - `Trigger` button
+- derives each asset card status from the latest unresolved detection:
+  - `ALERT` for `HIGH` or `CRITICAL`
+  - `WATCH` for lower-severity active detections
+  - `NORMAL` when no active detection exists
+- lets you open an asset to view:
+  - alert summary and likely cause
+  - supporting evidence
+  - relevant documents
+  - recommended response
+  - resolve action
+
+2. Documents and Graph
+
+- ingests a document through `POST /documents/ingest`
+- shows document indexing status
+- shows the generated wiki summary
+- shows the generated `page_index_tree` graph/table once indexing completes
+
+### Simulation Scenario Support
+
+Not every asset supports every simulator scenario. Current support is derived from backend code:
+
+- `Corrosion spike`: assets in `CORROSION_BASELINE`, currently `AREA-HP-SEP:V-101`
+- `Inspection overdue`: same asset set as corrosion
+- `Sensor anomaly`: the asset that owns sensor `V-101-PRESS`
+- `Transmitter divergence`: the asset that owns sensor `PT-101-PV`
+
 ---
 
 ## API

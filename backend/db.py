@@ -34,8 +34,25 @@ def get_db():
         db.close()
 
 
+_SEVERITY_TO_ASSET_STATUS = {
+    "CRITICAL": "MAINTENANCE",
+    "HIGH": "MAINTENANCE",
+    "MEDIUM": "STANDBY",
+    "LOW": "STANDBY",
+}
+
+
+def update_asset_status(db: Session, asset_id: str, status: str) -> None:
+    """Update the operational status of an asset in the assets table."""
+    db.execute(
+        text('UPDATE assets SET status = CAST(:status AS "AssetStatus") WHERE asset_id = :asset_id'),
+        {"asset_id": asset_id, "status": status},
+    )
+    db.commit()
+
+
 def write_detection(db: Session, record: DetectionRecord) -> None:
-    """Persist a DetectionRecord to the detections table."""
+    """Persist a DetectionRecord to the detections table and update the asset status."""
     db.execute(
         text(
             "INSERT INTO detections "
@@ -55,6 +72,60 @@ def write_detection(db: Session, record: DetectionRecord) -> None:
         },
     )
     db.commit()
+
+    new_status = _SEVERITY_TO_ASSET_STATUS.get(str(record.severity).upper())
+    if new_status:
+        update_asset_status(db, record.asset_id, new_status)
+
+
+def resolve_detection(db: Session, detection_id: str, resolved_by: str) -> dict | None:
+    """
+    Mark a detection as resolved and restore the asset to OPERATING status.
+
+    Returns a dict with detection metadata on success, or None if the detection
+    was not found or was already resolved.
+    """
+    import datetime as _dt
+
+    result = db.execute(
+        text(
+            "UPDATE detections "
+            "SET resolved_at = :now, resolved_by = :by "
+            "WHERE detection_id = CAST(:id AS uuid) "
+            "  AND resolved_at IS NULL "
+            "RETURNING asset_id, asset_tag, asset_name, area, detection_type, severity"
+        ),
+        {"now": _dt.datetime.now(_dt.timezone.utc), "by": resolved_by, "id": detection_id},
+    )
+    row = result.fetchone()
+    db.commit()
+
+    if row is None:
+        return None
+
+    asset_id, asset_tag, asset_name, area, detection_type, severity = row
+
+    # Restore asset to OPERATING only when no other active detections remain
+    remaining = db.execute(
+        text(
+            "SELECT COUNT(*) FROM detections "
+            "WHERE asset_id = :asset_id AND resolved_at IS NULL"
+        ),
+        {"asset_id": asset_id},
+    ).scalar()
+    if remaining == 0:
+        update_asset_status(db, asset_id, "OPERATING")
+
+    return {
+        "detection_id": detection_id,
+        "resolved_by": resolved_by,
+        "asset_id": asset_id,
+        "asset_tag": asset_tag,
+        "asset_name": asset_name,
+        "area": area,
+        "detection_type": detection_type,
+        "severity": severity,
+    }
 
 
 def write_insight(

@@ -1,15 +1,21 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from pydantic import BaseModel
 
-from db import SessionLocal
+from db import SessionLocal, resolve_detection
 from layers.context import gather_context
 from layers.reasoning import run_reasoning
 from models import DetectionRecord
+from notifications import send_discord_resolved, send_teams_resolved
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class ResolveRequest(BaseModel):
+    resolved_by: str = "operator"
 
 
 def _process_detection(detection: DetectionRecord) -> None:
@@ -48,3 +54,32 @@ async def receive_detection(request: Request, background_tasks: BackgroundTasks)
 
     background_tasks.add_task(_process_detection, detection)
     return {"received": True}
+
+
+@router.post("/detections/{detection_id}/resolve")
+def resolve_alert(detection_id: str, body: ResolveRequest):
+    """
+    Mark an open detection as resolved and restore the asset to OPERATING status
+    (when no other active detections remain for that asset).
+    """
+    db = SessionLocal()
+    try:
+        updated = resolve_detection(db, detection_id, body.resolved_by)
+    finally:
+        db.close()
+
+    if not updated:
+        raise HTTPException(
+            status_code=404,
+            detail="Detection not found or already resolved.",
+        )
+
+    logger.info("Detection %s resolved by %s", detection_id, body.resolved_by)
+
+    for send_fn in (send_teams_resolved, send_discord_resolved):
+        try:
+            send_fn(updated)
+        except Exception as exc:
+            logger.error("%s failed for resolved detection %s: %s", send_fn.__name__, detection_id, exc)
+
+    return {"resolved": True, "detection_id": detection_id, "resolved_by": body.resolved_by}

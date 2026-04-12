@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from db import write_insight
 from models import Confidence, DetectionContext, DetectionRecord, Insight
-from notifications import send_teams_alert
+from notifications import send_discord_alert, send_teams_alert
 
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,11 @@ def run_reasoning(
     write_insight(db, insight, context.relevant_docs)
     logger.info("Insight written for detection %s", detection.detection_id)
 
-    try:
-        send_teams_alert(detection, insight)
-    except Exception as exc:
-        logger.error("Teams notification failed for detection %s: %s", detection.detection_id, exc)
+    for send_fn in (send_teams_alert, send_discord_alert):
+        try:
+            send_fn(detection, insight)
+        except Exception as exc:
+            logger.error("%s failed for detection %s: %s", send_fn.__name__, detection.detection_id, exc)
 
     return insight
 

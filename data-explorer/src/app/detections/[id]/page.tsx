@@ -19,6 +19,44 @@ const CONFIDENCE_STYLES: Record<string, string> = {
   LOW:    'text-[#999999] bg-[#1f2535]/60 border-[#444444]',
 }
 
+const DOC_TYPE_STYLES: Record<string, string> = {
+  INSPECTION_REPORT:  'text-sky-400 bg-sky-500/10 border-sky-500/30',
+  MAINTENANCE_RECORD: 'text-orange-400 bg-orange-500/10 border-orange-500/30',
+  SAFETY_PROCEDURE:   'text-red-400 bg-red-500/10 border-red-500/30',
+}
+
+interface RelevantDoc {
+  doc_id:    string
+  title:     string
+  doc_type:  string
+  snippet:   string
+  tree_path: string | null
+}
+
+function DocTypeBadge({ docType }: { docType: string }) {
+  const style = DOC_TYPE_STYLES[docType] ?? 'text-[#999999] bg-[#1f2535]/60 border-[#444444]'
+  const label = docType.replace(/_/g, ' ')
+  return (
+    <span className={`text-[10px] px-2 py-0.5 rounded-sm border font-bold tracking-wider uppercase ${style}`}>
+      {label}
+    </span>
+  )
+}
+
+function TreePathBreadcrumb({ path }: { path: string }) {
+  const parts = path.split(/\s*[›>]\s*/)
+  return (
+    <nav className="flex flex-wrap items-center gap-1 text-[11px] text-[#666666]" aria-label="Document path">
+      {parts.map((part, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <span className="text-[#444444]">›</span>}
+          <span className={i === parts.length - 1 ? 'text-[#999999] font-medium' : ''}>{part}</span>
+        </span>
+      ))}
+    </nav>
+  )
+}
+
 export default async function DetectionDetailPage({
   params,
 }: {
@@ -49,6 +87,10 @@ export default async function DetectionDetailPage({
   const sensor = sensorId
     ? await prisma.sensorMetadata.findUnique({ where: { id: sensorId } })
     : null
+
+  const relevantDocs: RelevantDoc[] = Array.isArray(insight?.relevantDocs)
+    ? (insight.relevantDocs as unknown as RelevantDoc[])
+    : []
 
   const remainingLife = insight?.remainingLifeYears ?? null
   const lifeGaugePct = remainingLife !== null ? Math.min(100, (remainingLife / 10) * 100) : null
@@ -210,6 +252,41 @@ export default async function DetectionDetailPage({
             )}
           </div>
         </div>
+
+        {/* Sources */}
+        {insight && (
+          <div className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm p-6 mb-6">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4 pb-3 border-b border-[#333333]">
+              Sources
+            </h2>
+            {relevantDocs.length > 0 ? (
+              <div className="space-y-5">
+                {relevantDocs.map((doc, i) => (
+                  <div key={doc.doc_id ?? i} className="border border-[#2a2a3a] rounded-sm p-4 bg-[#161b27]">
+                    <div className="flex flex-wrap items-start gap-2 mb-2">
+                      <p className="text-white text-sm font-semibold leading-snug flex-1">{doc.title}</p>
+                      <DocTypeBadge docType={doc.doc_type} />
+                    </div>
+                    {doc.tree_path && (
+                      <div className="mb-3">
+                        <TreePathBreadcrumb path={doc.tree_path} />
+                      </div>
+                    )}
+                    {doc.snippet && (
+                      <p className="text-[#aaaaaa] text-xs leading-relaxed border-l-2 border-[#333333] pl-3 italic">
+                        {doc.snippet}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[#555555] text-sm italic">
+                No document sources were retrieved for this detection.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Sensor Trend Chart */}
         {sensor && (

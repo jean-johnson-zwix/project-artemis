@@ -205,21 +205,24 @@ enum WorkOrderStatus {
 }
 
 model Detection {
-  id            String   @id @map("detection_id") @db.Uuid
-  detectedAt    DateTime @map("detected_at") @db.Timestamptz()
-  detectionType String   @map("detection_type")
+  id            String    @id @map("detection_id") @db.Uuid
+  detectedAt    DateTime  @map("detected_at") @db.Timestamptz()
+  detectionType String    @map("detection_type")
   severity      String
-  assetId       String   @map("asset_id")
-  assetTag      String   @map("asset_tag")
-  assetName     String   @map("asset_name")
+  assetId       String    @map("asset_id")
+  assetTag      String    @map("asset_tag")
+  assetName     String    @map("asset_name")
   area          String
-  detectionData Json     @map("detection_data")
+  detectionData Json      @map("detection_data")
+  resolvedAt    DateTime? @map("resolved_at") @db.Timestamptz()
+  resolvedBy    String?   @map("resolved_by")
 
   insight       Insight?
 
   @@index([assetId])
   @@index([detectionType])
   @@index([detectedAt])
+  @@index([resolvedAt])
   @@map("detections")
 }
 

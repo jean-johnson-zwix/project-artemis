@@ -3,9 +3,13 @@ uvicorn[standard]>=0.30
 sqlalchemy>=2.0
 psycopg2-binary>=2.9
 httpx>=0.27
+requests>=2.32
 python-dotenv>=1.0
 apscheduler
 pydantic
 pydantic-settings
 openai
 instructor>=1.0
+streamlit>=1.44
+pandas>=2.2
+plotly>=5.24
