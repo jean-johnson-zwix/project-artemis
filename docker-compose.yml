@@ -1,0 +1,124 @@
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Artemis — full-stack Docker Compose
+#
+# Quick start:
+#   cp .env.example .env          # fill in API keys
+#   docker compose up             # DB + migrate/seed + frontend + backend
+#
+# Include the Discord bot:
+#   docker compose --profile discord up
+#
+# Reset everything (wipes the DB volume):
+#   docker compose down -v
+# ---------------------------------------------------------------------------
+
+services:
+  # -------------------------------------------------------------------------
+  # PostgreSQL 17 + pgvector
+  # -------------------------------------------------------------------------
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: artemis_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hackazona}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hackazona}
+      POSTGRES_DB: ${POSTGRES_DB:-hackazona}
+    ports:
+      - "5433:5432"   # host:5433 keeps parity with the existing data-explorer setup
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hackazona}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------------
+  # One-shot: run Prisma migrations + seed (skips seed if data already exists)
+  # -------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: data-explorer/Dockerfile
+    entrypoint: ["/app/docker/seed-entrypoint.sh"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hackazona}:${POSTGRES_PASSWORD:-hackazona}@postgres:5432/${POSTGRES_DB:-hackazona}
+    volumes:
+      - ./data:/app/data:ro   # CSVs read by prisma db seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # -------------------------------------------------------------------------
+  # Next.js 15 frontend — data-explorer
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: data-explorer/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hackazona}:${POSTGRES_PASSWORD:-hackazona}@postgres:5432/${POSTGRES_DB:-hackazona}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # FastAPI backend — detection + reasoning pipeline
+  # -------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hackazona}:${POSTGRES_PASSWORD:-hackazona}@postgres:5432/${POSTGRES_DB:-hackazona}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}
+      AZURE_OPENAI_EMBEDDING_DEPLOYMENT: ${AZURE_OPENAI_EMBEDDING_DEPLOYMENT:-text-embedding-3-small}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-02-01}
+      TEAMS_WEBHOOK_URL: ${TEAMS_WEBHOOK_URL:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
+  # Discord bot — interactive Q&A in alert threads
+  # Only started when the `discord` profile is active:
+  #   docker compose --profile discord up
+  # -------------------------------------------------------------------------
+  bot:
+    build:
+      context: ./backend
+    command: ["python", "bot.py"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hackazona}:${POSTGRES_PASSWORD:-hackazona}@postgres:5432/${POSTGRES_DB:-hackazona}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-4o-mini}
+      AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-02-01}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    profiles:
+      - discord
+
+volumes:
+  pgdata:
+    name: artemis_pgdata

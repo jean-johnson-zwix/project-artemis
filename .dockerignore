@@ -1,0 +1,22 @@
+# Python virtualenv (large, not needed in image)
+backend/.venv
+backend/__pycache__
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Node modules and build output
+data-explorer/node_modules
+data-explorer/.next
+data-explorer/.turbo
+
+# Data directory — mounted as a volume at runtime, not baked into the image
+data/
+
+# Git history
+.git
+
+# Local env files — injected via docker-compose environment: blocks
+.env
+data-explorer/.env
+backend/.env
