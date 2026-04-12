@@ -7,7 +7,7 @@ from routers.ingest import router as ingest_router
 
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Layer 1 Detection Engine")
+app = FastAPI(title="Hackazona Detection API")
 
 app.include_router(ingest_router)
 app.include_router(detections_router)
