@@ -8,24 +8,24 @@ import { cn } from '@/lib/utils'
 export const dynamic = 'force-dynamic'
 
 function healthColor(score: number) {
-  if (score >= 80) return 'text-green-400 border-green-500/30 bg-green-500/10'
-  if (score >= 50) return 'text-yellow-400 border-yellow-500/30 bg-yellow-500/10'
-  return 'text-red-400 border-red-500/30 bg-red-500/10'
+  if (score >= 80) return 'text-[#00ff9f] border-[#00ff9f]/30 bg-[#00ff9f]/10'
+  if (score >= 50) return 'text-[#ff6b35] border-[#ff6b35]/30 bg-[#ff6b35]/10'
+  return 'text-[#ff6b35] border-[#ff6b35]/30 bg-[#ff6b35]/10'
 }
 
 const severityColors: Record<string, string> = {
-  CRITICAL: 'bg-red-500/20 text-red-400 border-red-500/30',
-  HIGH: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  MEDIUM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  LOW: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+  CRITICAL: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  HIGH: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  MEDIUM: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  LOW: 'bg-[#00d9ff]/10 text-[#00d9ff] border-[#00d9ff]/30',
 }
 
 const priorityColors: Record<string, string> = {
-  EMERGENCY: 'bg-red-500/20 text-red-400 border-red-500/30',
-  CRITICAL: 'bg-red-500/20 text-red-400 border-red-500/30',
-  HIGH: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
-  MEDIUM: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-  LOW: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+  EMERGENCY: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  CRITICAL: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  HIGH: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  MEDIUM: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+  LOW: 'bg-[#00d9ff]/10 text-[#00d9ff] border-[#00d9ff]/30',
 }
 
 export default async function AssetDetailPage({
@@ -81,127 +81,129 @@ export default async function AssetDetailPage({
   })
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <p className="text-xs text-slate-500 mb-1">{asset.tag} · {asset.area}</p>
-          <h1 className="text-2xl font-bold text-white">{asset.name}</h1>
-          <p className="text-slate-400 text-sm">{asset.type}{asset.subtype ? ` / ${asset.subtype}` : ''}</p>
+    <div className="min-h-screen bg-gradient-to-br from-[#0f1419] to-[#1a1f2e]">
+      <div className="p-6 max-w-full">
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <p className="text-xs text-[#999999] mb-2 uppercase tracking-wider font-semibold">{asset.tag} · {asset.area}</p>
+            <h1 className="text-4xl font-bold text-white tracking-tight">{asset.name}</h1>
+            <p className="text-[#999999] text-sm mt-2">{asset.type}{asset.subtype ? ` / ${asset.subtype}` : ''}</p>
+          </div>
+          <div className={cn('border rounded-sm px-6 py-3 text-center', healthColor(healthScore))}>
+            <p className="text-3xl font-bold">{healthScore}</p>
+            <p className="text-xs opacity-70 uppercase tracking-wider font-semibold mt-1">Health Score</p>
+          </div>
         </div>
-        <div className={cn('border rounded-lg px-4 py-2 text-center', healthColor(healthScore))}>
-          <p className="text-2xl font-bold">{healthScore}</p>
-          <p className="text-xs opacity-70">Health Score</p>
-        </div>
-      </div>
 
-      {/* Asset Info */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {[
-          { label: 'Manufacturer', value: asset.manufacturer },
-          { label: 'Model', value: asset.model },
-          { label: 'Status', value: asset.status },
-          { label: 'Criticality', value: asset.criticality },
-          { label: 'Location', value: asset.location },
-          { label: 'Install Date', value: asset.installDate ? format(asset.installDate, 'MMM yyyy') : null },
-        ].map(({ label, value }) =>
-          value ? (
-            <div key={label} className="rounded-lg border border-slate-700 bg-slate-800/50 p-3">
-              <p className="text-xs text-slate-500 mb-1">{label}</p>
-              <p className="text-sm text-slate-200">{value}</p>
-            </div>
-          ) : null
-        )}
-      </div>
-
-      {/* Sensor Charts */}
-      {asset.sensors.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-300 mb-3">Sensor Trends</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {asset.sensors.map((sensor) => (
-              <div key={sensor.id} className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-                <SensorTrendChart
-                  sensorId={sensor.id}
-                  sensorName={sensor.name}
-                  unit={sensor.unit}
-                  normalMin={sensor.normalMin}
-                  normalMax={sensor.normalMax}
-                  alarmLow={sensor.alarmLow}
-                  alarmHigh={sensor.alarmHigh}
-                  tripLow={sensor.tripLow}
-                  tripHigh={sensor.tripHigh}
-                />
+        {/* Asset Info */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Manufacturer', value: asset.manufacturer },
+            { label: 'Model', value: asset.model },
+            { label: 'Status', value: asset.status },
+            { label: 'Criticality', value: asset.criticality },
+            { label: 'Location', value: asset.location },
+            { label: 'Install Date', value: asset.installDate ? format(asset.installDate, 'MMM yyyy') : null },
+          ].map(({ label, value }) =>
+            value ? (
+              <div key={label} className="rounded-sm border border-[#333333] bg-[#1f2535]/40 p-4">
+                <p className="text-xs text-[#999999] mb-2 uppercase tracking-wider font-semibold">{label}</p>
+                <p className="text-white font-semibold">{value}</p>
               </div>
-            ))}
-          </div>
+            ) : null
+          )}
         </div>
-      )}
 
-      {/* Recent Failures */}
-      {recentFailures.length > 0 && (
-        <div className="mb-6">
-          <h2 className="text-sm font-semibold text-slate-300 mb-3">Recent Failures</h2>
-          <div className="rounded-lg border border-slate-700 bg-slate-900 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-700">
-                <tr>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Date</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Failure Mode</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Root Cause</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Severity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentFailures.map((f) => (
-                  <tr key={f.id} className="border-b border-slate-800">
-                    <td className="px-4 py-2 text-slate-400">{format(f.eventTimestamp, 'MMM d, yyyy')}</td>
-                    <td className="px-4 py-2 text-slate-300">{f.failureMode}</td>
-                    <td className="px-4 py-2 text-slate-400 max-w-xs truncate">{f.rootCause}</td>
-                    <td className="px-4 py-2">
-                      <span className={cn('text-xs px-1.5 py-0.5 rounded border', severityColors[f.severity] ?? '')}>
-                        {f.severity}
-                      </span>
-                    </td>
+        {/* Sensor Charts */}
+        {asset.sensors.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4">Sensor Trends</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {asset.sensors.map((sensor) => (
+                <div key={sensor.id} className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm p-6">
+                  <SensorTrendChart
+                    sensorId={sensor.id}
+                    sensorName={sensor.name}
+                    unit={sensor.unit}
+                    normalMin={sensor.normalMin}
+                    normalMax={sensor.normalMax}
+                    alarmLow={sensor.alarmLow}
+                    alarmHigh={sensor.alarmHigh}
+                    tripLow={sensor.tripLow}
+                    tripHigh={sensor.tripHigh}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Recent Failures */}
+        {recentFailures.length > 0 && (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4">Recent Failures</h2>
+            <div className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="border-b border-[#333333]">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Date</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Failure Mode</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Root Cause</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Severity</th>
                   </tr>
-                ))}
-              </tbody>
+                </thead>
+                <tbody>
+                  {recentFailures.map((f) => (
+                    <tr key={f.id} className="border-b border-[#1f2535] hover:bg-[#1f2535]/40 transition-colors">
+                      <td className="px-4 py-3 text-[#999999]">{format(f.eventTimestamp, 'MMM d, yyyy')}</td>
+                      <td className="px-4 py-3 text-white font-semibold">{f.failureMode}</td>
+                      <td className="px-4 py-3 text-[#666666] max-w-xs truncate">{f.rootCause}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn('text-xs px-2 py-1 rounded-sm border', severityColors[f.severity] ?? '')}>
+                          {f.severity}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Recent Work Orders */}
+        {recentWorkOrders.length > 0 && (
+          <div>
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4">Recent Work Orders</h2>
+            <div className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="border-b border-[#333333]">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">ID</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Description</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Priority</th>
+                    <th className="text-left px-4 py-3 text-[#999999] font-semibold uppercase text-xs tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentWorkOrders.map((wo) => (
+                    <tr key={wo.id} className="border-b border-[#1f2535] hover:bg-[#1f2535]/40 transition-colors">
+                      <td className="px-4 py-3 text-[#666666] font-mono text-xs">{wo.id}</td>
+                      <td className="px-4 py-3 text-white max-w-xs truncate">{wo.workDescription}</td>
+                      <td className="px-4 py-3">
+                        <span className={cn('text-xs px-2 py-1 rounded-sm border', priorityColors[wo.priority] ?? '')}>
+                          {wo.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#999999]">{wo.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
             </table>
           </div>
         </div>
       )}
-
-      {/* Recent Work Orders */}
-      {recentWorkOrders.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-slate-300 mb-3">Recent Work Orders</h2>
-          <div className="rounded-lg border border-slate-700 bg-slate-900 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-700">
-                <tr>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">ID</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Description</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Priority</th>
-                  <th className="text-left px-4 py-2 text-slate-400 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentWorkOrders.map((wo) => (
-                  <tr key={wo.id} className="border-b border-slate-800">
-                    <td className="px-4 py-2 text-slate-500 font-mono text-xs">{wo.id}</td>
-                    <td className="px-4 py-2 text-slate-300 max-w-xs truncate">{wo.workDescription}</td>
-                    <td className="px-4 py-2">
-                      <span className={cn('text-xs px-1.5 py-0.5 rounded border', priorityColors[wo.priority] ?? '')}>
-                        {wo.priority}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-slate-400">{wo.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
