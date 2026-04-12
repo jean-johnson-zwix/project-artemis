@@ -204,6 +204,23 @@ enum WorkOrderStatus {
   DEFERRED
 }
 
+model Detection {
+  id            String   @id @map("detection_id") @db.Uuid
+  detectedAt    DateTime @map("detected_at") @db.Timestamptz()
+  detectionType String   @map("detection_type")
+  severity      String
+  assetId       String   @map("asset_id")
+  assetTag      String   @map("asset_tag")
+  assetName     String   @map("asset_name")
+  area          String
+  detectionData Json     @map("detection_data")
+
+  @@index([assetId])
+  @@index([detectionType])
+  @@index([detectedAt])
+  @@map("detections")
+}
+
 model Document {
   id         String    @id @map("doc_id")
   assetId    String?   @map("asset_id")
