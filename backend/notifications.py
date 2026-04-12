@@ -307,6 +307,72 @@ def send_discord_alert(detection: DetectionRecord, insight: Insight) -> str | No
     return None
 
 
+def send_salesforce_case(detection: DetectionRecord, insight: Insight) -> str | None:
+    """
+    Obtain a Salesforce OAuth token via client_credentials, then create a Case.
+
+    Returns the Salesforce Case ID on success, or None if Salesforce is not configured.
+    Raises on HTTP errors.
+    """
+    instance_url = os.getenv("SALESFORCE_INSTANCE_URL")
+    client_id = os.getenv("SALESFORCE_CLIENT_ID")
+    client_secret = os.getenv("SALESFORCE_CLIENT_SECRET")
+
+    if not all([instance_url, client_id, client_secret]):
+        logger.warning("Salesforce not configured — skipping case creation")
+        return None
+
+    type_label = DETECTION_TYPE_LABELS.get(detection.detection_type, detection.detection_type)
+
+    # Step 1: obtain token
+    token_resp = httpx.post(
+        f"{instance_url}/services/oauth2/token",
+        params={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        timeout=10.0,
+    )
+    if token_resp.status_code >= 300:
+        raise RuntimeError(
+            f"Salesforce token request failed {token_resp.status_code}: {token_resp.text[:200]}"
+        )
+    access_token = token_resp.json()["access_token"]
+
+    # Step 2: create Case
+    subject = f"[{detection.severity}] {type_label} — {detection.asset_name} ({detection.asset_tag})"
+    description = (
+        f"Detection ID: {detection.detection_id}\n"
+        f"Area: {detection.area}\n"
+        f"Detected: {detection.detected_at}\n\n"
+        f"What: {insight.what}\n\n"
+        f"Why: {insight.why}\n\n"
+        f"Evidence:\n" + "\n".join(f"- {e}" for e in insight.evidence) + "\n\n"
+        f"Recommended Actions:\n" + "\n".join(f"- {a}" for a in insight.recommended_actions)
+    )
+
+    case_resp = httpx.post(
+        f"{instance_url}/services/data/v63.0/sobjects/Case/",
+        headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
+        json={
+            "Subject": subject,
+            "Description": description,
+            "Origin": "Web",
+            "Status": "New",
+        },
+        timeout=10.0,
+    )
+    if case_resp.status_code >= 300:
+        raise RuntimeError(
+            f"Salesforce case creation failed {case_resp.status_code}: {case_resp.text[:200]}"
+        )
+
+    case_id = case_resp.json().get("id")
+    logger.info("Salesforce case %s created for detection %s", case_id, detection.detection_id)
+    return case_id
+
+
 def send_teams_resolved(resolved: dict) -> None:
     """Post an Adaptive Card to Teams when an alert is marked resolved."""
     webhook_url = os.getenv("TEAMS_WEBHOOK_URL")
