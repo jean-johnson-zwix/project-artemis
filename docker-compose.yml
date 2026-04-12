@@ -93,6 +93,25 @@ services:
     restart: unless-stopped
 
   # -------------------------------------------------------------------------
+  # Streamlit demo dashboard
+  # -------------------------------------------------------------------------
+  streamlit:
+    build:
+      context: ./backend
+    command: ["streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-hackazona}:${POSTGRES_PASSWORD:-hackazona}@postgres:5432/${POSTGRES_DB:-hackazona}
+      BACKEND_BASE_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  # -------------------------------------------------------------------------
   # Discord bot — interactive Q&A in alert threads
   # Exits cleanly (no restart loop) if DISCORD_BOT_TOKEN is not set.
   # -------------------------------------------------------------------------

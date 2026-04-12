@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 # psql is used by seed-entrypoint.sh to detect whether the DB is already seeded
-RUN apk add --no-cache postgresql-client
+RUN apk add --no-cache postgresql-client openssl
 
 WORKDIR /app/data-explorer
 

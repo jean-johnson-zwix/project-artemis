@@ -116,6 +116,7 @@ make docker-up
 |---|---|
 | Frontend | http://localhost:3000 |
 | Backend API / docs | http://localhost:8000/docs |
+| Streamlit dashboard | http://localhost:8501 |
 | PostgreSQL | localhost:5433 |
 
 The Discord bot starts automatically. If `DISCORD_BOT_TOKEN` is not set it exits cleanly — no restart loop, no noise in the logs.

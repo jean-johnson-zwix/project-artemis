@@ -33,6 +33,9 @@ dev-frontend:
 dev-backend:
 	cd backend && source .venv/bin/activate && uvicorn main:app --reload --port 8000
 
+dev-streamlit:
+	cd backend && source .venv/bin/activate && streamlit run dashboard.py
+
 # ---------------------------------------------------------------------------
 # Docker Compose shortcuts
 # ---------------------------------------------------------------------------
