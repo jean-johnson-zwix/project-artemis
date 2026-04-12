@@ -88,6 +88,7 @@ def fetch_detection_demo_data(database_url: str) -> dict[str, pd.DataFrame]:
                 d.detection_data,
                 d.resolved_at,
                 d.resolved_by,
+                d.resolution_notes,
                 i.created_at AS insight_created_at,
                 i.what,
                 i.why,
@@ -254,8 +255,11 @@ def render_alert_details(selected_asset: pd.Series, detections_df: pd.DataFrame,
     with header_right:
         st.caption(f"Detected: {pretty_time(selected['detected_at'])}")
         if is_resolved:
+            notes = selected.get("resolution_notes")
             st.success(f"Resolved by {selected.get('resolved_by', 'unknown')}")
             st.caption(pretty_time(resolved_at))
+            if notes:
+                st.caption(f"Notes: {notes}")
 
     st.markdown("#### Executive Summary")
     if pd.notna(selected.get("what")) and selected["what"]:
@@ -310,13 +314,21 @@ def render_alert_details(selected_asset: pd.Series, detections_df: pd.DataFrame,
         if not is_resolved:
             st.divider()
             with st.form(f"resolve-form-{selected['detection_id']}"):
-                resolved_by = st.text_input("Resolved by", value="operator", label_visibility="collapsed")
+                resolved_by = st.text_input("Resolved by", value="operator")
+                resolution_notes = st.text_area(
+                    "How was it resolved?",
+                    placeholder="e.g. Replaced corroded section, coating reapplied, sensor recalibrated…",
+                    height=80,
+                )
                 if st.form_submit_button("Mark as resolved", use_container_width=True):
                     ok, response = api_request(
                         "POST",
                         api_base_url,
                         f"/detections/{selected['detection_id']}/resolve",
-                        {"resolved_by": resolved_by or "operator"},
+                        {
+                            "resolved_by": resolved_by or "operator",
+                            "resolution_notes": resolution_notes or None,
+                        },
                     )
                     if ok:
                         st.success("Alert marked as resolved.")
@@ -351,6 +363,51 @@ def flatten_tree(node: dict[str, Any] | None, parent_path: str = "") -> list[dic
     return rows
 
 
+def format_tree_rows(tree: dict[str, Any] | None) -> pd.DataFrame:
+    rows = flatten_tree(tree)
+    formatted_rows: list[dict[str, Any]] = []
+    for row in rows:
+        path = str(row["Path"])
+        depth = path.count(" -> ")
+        section_title = path.split(" -> ")[-1]
+        formatted_rows.append(
+            {
+                "Section": f"{'    ' * depth}{section_title}",
+                "Span": f"{row['Start']} - {row['End']}",
+                "Summary": row["Summary"],
+            }
+        )
+    return pd.DataFrame(formatted_rows)
+
+
+def build_tree_graph(node: dict[str, Any] | None) -> str:
+    if not isinstance(node, dict):
+        return "digraph G {}"
+
+    lines = [
+        "digraph DocumentTree {",
+        'rankdir="TB";',
+        'graph [bgcolor="transparent", pad="0.2", nodesep="0.35", ranksep="0.45"];',
+        'node [shape="box", style="rounded,filled", fillcolor="#F8FAFC", color="#0F766E", fontname="Helvetica", fontsize="11", margin="0.18,0.12"];',
+        'edge [color="#94A3B8", penwidth="1.2"];',
+    ]
+
+    def _walk(current: dict[str, Any]) -> None:
+        current_id = str(current.get("node_id", "unknown"))
+        title = str(current.get("title", "Untitled")).replace('"', '\\"')
+        node_label = f"Root\\n{title}" if current_id == "root" else title
+        lines.append(f'"{current_id}" [label="{node_label}"];')
+        for child in current.get("nodes") or []:
+            if isinstance(child, dict):
+                child_id = str(child.get("node_id", "unknown"))
+                lines.append(f'"{current_id}" -> "{child_id}";')
+                _walk(child)
+
+    _walk(node)
+    lines.append("}")
+    return "\n".join(lines)
+
+
 api_base_url = DEFAULT_API_BASE_URL
 database_url = DEFAULT_DATABASE_URL
 
@@ -369,7 +426,7 @@ with refresh_col:
 if not database_url:
     st.info("Set `DATABASE_URL` in the environment to show detections, insights, and document graph status from Postgres.")
 
-detection_tab, docs_tab = st.tabs(["Monitor", "2. Documents and Graph"])
+detection_tab, docs_tab = st.tabs(["Monitor", "Documents Graph"])
 
 with detection_tab:
     detections_df = detection_data.get("detections", pd.DataFrame()).copy()
@@ -493,101 +550,130 @@ with detection_tab:
                     render_alert_details(selected_asset_rows.iloc[0], detections_df, api_base_url)
 
 with docs_tab:
-    st.subheader("Ingest a Document and Show Graph Generation")
-    st.caption("Send a document into the backend, then show indexing status, wiki entry generation, and the PageIndex graph structure.")
+    st.subheader("Document Intelligence")
+    st.caption("Ingest a document, track its indexing state, and inspect the generated document map used for retrieval.")
 
-    ingest_col, status_col = st.columns([1, 1.4], gap="large")
+    docs_df = document_data.get("documents", pd.DataFrame()).copy()
+    wiki_df = document_data.get("wiki_index", pd.DataFrame()).copy()
+    asset_options = detection_data.get("assets", pd.DataFrame()).copy()
+
+    ingest_col, output_col = st.columns([1, 1.35], gap="large")
 
     with ingest_col:
-        with st.form("document-ingest-form"):
-            doc_id = st.text_input("Document ID", value="DOC-DEMO-001")
-            doc_title = st.text_input("Title", value="V-101 Demo Inspection Report")
-            doc_type = st.text_input("Document type", value="INSPECTION_REPORT")
-            doc_asset_id = st.text_input("Asset ID", value="AREA-HP-SEP:V-101")
-            doc_revision = st.text_input("Revision", value="A")
-            doc_author = st.text_input("Author", value="Demo Engineer")
-            doc_content = st.text_area(
-                "Document content",
-                height=220,
-                value=(
-                    "HP Separator V-101 Inspection Report\n\n"
-                    "Executive Summary\n"
-                    "Inspection on V-101 found wall thickness at 4.7 mm at shell grid E-3. "
-                    "Design minimum is 5.0 mm. Corrosion rate is estimated at 0.38 mm/year.\n\n"
-                    "Recommendations\n"
-                    "Re-inspect V-101 within 6 months. Review coating condition and confirm remaining allowance."
-                ),
-            )
-            ingest_document = st.form_submit_button("Ingest document", use_container_width=True)
-            if ingest_document:
-                payload = {
-                    "doc_id": doc_id,
-                    "asset_id": doc_asset_id or None,
-                    "doc_type": doc_type,
-                    "title": doc_title,
-                    "revision": doc_revision or None,
-                    "author": doc_author or None,
-                    "issue_date": datetime.now(timezone.utc).isoformat(),
-                    "content": doc_content,
-                }
-                ok, response = api_request("POST", api_base_url, "/documents/ingest", payload)
-                if ok:
-                    st.success("Document submitted for indexing")
-                    st.json(response)
-                    st.cache_data.clear()
+        with st.container(border=True):
+            st.markdown("### Ingest Document")
+            with st.form("document-ingest-form"):
+                doc_id = st.text_input("Document ID", value="DOC-DEMO-001")
+                doc_title = st.text_input("Title", value="V-101 Demo Inspection Report")
+                selected_doc_asset = st.selectbox(
+                    "Asset",
+                    asset_options["asset_id"].tolist() if not asset_options.empty else ["AREA-HP-SEP:V-101"],
+                    format_func=lambda asset_id: (
+                        asset_id
+                        if asset_options.empty
+                        else f"{asset_options.loc[asset_options['asset_id'] == asset_id, 'tag'].iloc[0]} | {asset_id}"
+                    ),
+                )
+                doc_type = st.text_input("Document type", value="INSPECTION_REPORT")
+                doc_content = st.text_area(
+                    "Content",
+                    height=260,
+                    value=(
+                        "HP Separator V-101 Inspection Report\n\n"
+                        "Executive Summary\n"
+                        "Inspection on V-101 found wall thickness at 4.7 mm at shell grid E-3. "
+                        "Design minimum is 5.0 mm. Corrosion rate is estimated at 0.38 mm/year.\n\n"
+                        "Recommendations\n"
+                        "Re-inspect V-101 within 6 months. Review coating condition and confirm remaining allowance."
+                    ),
+                )
+                with st.expander("Advanced fields"):
+                    doc_revision = st.text_input("Revision", value="A")
+                    doc_author = st.text_input("Author", value="Demo Engineer")
+
+                ingest_document = st.form_submit_button("Ingest document", use_container_width=True)
+                if ingest_document:
+                    payload = {
+                        "doc_id": doc_id,
+                        "asset_id": selected_doc_asset or None,
+                        "doc_type": doc_type,
+                        "title": doc_title,
+                        "revision": doc_revision or None,
+                        "author": doc_author or None,
+                        "issue_date": datetime.now(timezone.utc).isoformat(),
+                        "content": doc_content,
+                    }
+                    ok, response = api_request("POST", api_base_url, "/documents/ingest", payload)
+                    if ok:
+                        st.session_state["selected_document_id"] = doc_id
+                        st.success("Document submitted for indexing")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("Document ingest failed")
+                        st.code(str(response))
+
+            st.caption("The document map breaks raw text into navigable sections so alerts can retrieve the most relevant evidence.")
+
+    with output_col:
+        with st.container(border=True):
+            st.markdown("### Document Output")
+            if docs_df.empty:
+                st.info("Ingest a document to see its indexing state, AI summary, and generated document map.")
+            else:
+                doc_options = docs_df["doc_id"].tolist()
+                default_doc_id = st.session_state.get("selected_document_id", doc_options[0])
+                if default_doc_id not in doc_options:
+                    default_doc_id = doc_options[0]
+                selected_doc_id = st.selectbox(
+                    "Selected document",
+                    doc_options,
+                    index=doc_options.index(default_doc_id),
+                    format_func=lambda value: (
+                        f"{value} | {docs_df.loc[docs_df['doc_id'] == value, 'title'].iloc[0]}"
+                    ),
+                )
+                st.session_state["selected_document_id"] = selected_doc_id
+
+                selected_doc = docs_df.loc[docs_df["doc_id"] == selected_doc_id].iloc[0]
+                tree = selected_doc["page_index_tree"] if isinstance(selected_doc["page_index_tree"], dict) else None
+                indexed = pd.notna(selected_doc["indexed_at"])
+                status_text = "Graph ready" if indexed else "Indexing in progress"
+                status_variant = "ready" if indexed else "indexing"
+
+                if status_variant == "ready":
+                    st.success(f"{status_text} for {selected_doc['title']}")
                 else:
-                    st.error("Document ingest failed")
-                    st.code(str(response))
+                    st.warning(f"{status_text} for {selected_doc['title']}")
 
-        st.markdown("**Document status**")
-        check_doc_id = st.text_input("Status lookup doc_id", value="DOC-DEMO-001")
-        if st.button("Check indexing status", use_container_width=True):
-            ok, response = api_request("GET", api_base_url, f"/documents/{check_doc_id}/status")
-            if ok:
-                st.json(response)
-            else:
-                st.error("Status lookup failed")
-                st.code(str(response))
+                meta_cols = st.columns(4)
+                with meta_cols[0]:
+                    st.metric("Status", "Ready" if indexed else "Indexing")
+                with meta_cols[1]:
+                    st.metric("Document ID", selected_doc["doc_id"])
+                with meta_cols[2]:
+                    st.metric("Asset", selected_doc["asset_id"] or "-")
+                with meta_cols[3]:
+                    st.metric("Graph Nodes", count_tree_nodes(tree))
 
-    with status_col:
-        docs_df = document_data.get("documents", pd.DataFrame()).copy()
-        wiki_df = document_data.get("wiki_index", pd.DataFrame()).copy()
+                st.caption(f"Indexed at: {pretty_time(selected_doc['indexed_at']) if indexed else '-'}")
 
-        if docs_df.empty:
-            st.info("Ingest a document, then refresh to show the generated graph and wiki record.")
-        else:
-            doc_options = docs_df["doc_id"].tolist()
-            selected_doc_id = st.selectbox(
-                "Document to present",
-                doc_options,
-                format_func=lambda value: (
-                    f"{value} | {docs_df.loc[docs_df['doc_id'] == value, 'title'].iloc[0]}"
-                ),
-            )
-            selected_doc = docs_df.loc[docs_df["doc_id"] == selected_doc_id].iloc[0]
-            tree = selected_doc["page_index_tree"] if isinstance(selected_doc["page_index_tree"], dict) else None
-            indexed = pd.notna(selected_doc["indexed_at"])
+                wiki_match = wiki_df.loc[wiki_df["doc_id"] == selected_doc_id]
+                st.markdown("#### AI Summary")
+                if not wiki_match.empty:
+                    st.write(wiki_match.iloc[0]["one_line_summary"])
+                else:
+                    st.caption("AI summary will appear after indexing completes.")
 
-            status_text = "Ready" if indexed else "Indexing"
-            metric_cols = st.columns(3)
-            with metric_cols[0]:
-                st.metric("Status", status_text)
-            with metric_cols[1]:
-                st.metric("Indexed At", pretty_time(selected_doc["indexed_at"]) if indexed else "-")
-            with metric_cols[2]:
-                st.metric("Graph Nodes", count_tree_nodes(tree))
+                st.markdown("#### Generated Document Map")
+                if tree:
+                    st.markdown("**Tree Diagram**")
+                    st.graphviz_chart(build_tree_graph(tree), use_container_width=True)
+                    st.markdown("**Section Table**")
+                    formatted_tree_df = format_tree_rows(tree)
+                    st.dataframe(formatted_tree_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("The generated document map will appear here once indexing completes.")
 
-            wiki_match = wiki_df.loc[wiki_df["doc_id"] == selected_doc_id]
-            if not wiki_match.empty:
-                st.markdown("**Wiki summary**")
-                st.write(wiki_match.iloc[0]["one_line_summary"])
-
-            if tree:
-                st.markdown("**PageIndex graph**")
-                tree_rows = flatten_tree(tree)
-                st.dataframe(pd.DataFrame(tree_rows), use_container_width=True, hide_index=True)
-            else:
-                st.info("PageIndex graph not ready yet.")
-
-            with st.expander("Raw page_index_tree JSON"):
-                st.code(json.dumps(selected_doc["page_index_tree"], indent=2, default=str), language="json")
+                with st.expander("Technical JSON"):
+                    st.code(json.dumps(selected_doc["page_index_tree"], indent=2, default=str), language="json")

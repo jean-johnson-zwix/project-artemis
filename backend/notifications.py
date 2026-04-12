@@ -210,15 +210,23 @@ def send_teams_alert(detection: DetectionRecord, insight: Insight) -> None:
     logger.info("Teams alert sent for detection %s", detection.detection_id)
 
 
-def send_discord_alert(detection: DetectionRecord, insight: Insight) -> None:
+def _discord_bot_headers() -> dict[str, str]:
+    return {"Authorization": f"Bot {os.environ['DISCORD_BOT_TOKEN']}", "Content-Type": "application/json"}
+
+
+def send_discord_alert(detection: DetectionRecord, insight: Insight) -> str | None:
     """
-    Build and POST a Discord embed to a Discord Incoming Webhook.
-    Raises on non-2xx response.
+    Post an alert embed to the configured Discord channel via the Bot REST API,
+    then create a thread on that message for operator Q&A.
+
+    Returns the thread_id (str) on success, or None if Discord is not configured.
+    Falls back to webhook-only (no thread) when DISCORD_BOT_TOKEN / DISCORD_CHANNEL_ID
+    are absent but DISCORD_WEBHOOK_URL is set.
+    Raises on HTTP errors.
     """
+    bot_token = os.getenv("DISCORD_BOT_TOKEN")
+    channel_id = os.getenv("DISCORD_CHANNEL_ID")
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    if not webhook_url:
-        logger.warning("DISCORD_WEBHOOK_URL not set — skipping Discord notification")
-        return
 
     frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
     detection_url = f"{frontend_base}/detections/{detection.detection_id}"
@@ -226,7 +234,6 @@ def send_discord_alert(detection: DetectionRecord, insight: Insight) -> None:
     colour = DISCORD_COLORS.get(detection.severity, 0x99AAB5)
     emoji = SEVERITY_EMOJI.get(detection.severity, "")
     type_label = DETECTION_TYPE_LABELS.get(detection.detection_type, detection.detection_type)
-
     detected_str = (
         detection.detected_at.strftime("%d %b %Y %H:%M UTC")
         if hasattr(detection.detected_at, "strftime")
@@ -241,13 +248,8 @@ def send_discord_alert(detection: DetectionRecord, insight: Insight) -> None:
         {"name": "Evidence", "value": "\n".join(f"• {e}" for e in insight.evidence) or "—", "inline": False},
         {"name": "Recommended Actions", "value": "\n".join(f"• {a}" for a in insight.recommended_actions) or "—", "inline": False},
     ]
-
     if insight.remaining_life_years is not None:
-        fields.insert(2, {
-            "name": "Remaining Life",
-            "value": f"{insight.remaining_life_years:.1f} years",
-            "inline": True,
-        })
+        fields.insert(2, {"name": "Remaining Life", "value": f"{insight.remaining_life_years:.1f} years", "inline": True})
 
     embed = {
         "title": f"{emoji} {detection.severity} — {type_label}",
@@ -257,12 +259,52 @@ def send_discord_alert(detection: DetectionRecord, insight: Insight) -> None:
         "footer": {"text": f"Confidence: {insight.confidence.value}  •  {detected_str}"},
     }
 
-    response = httpx.post(webhook_url, json={"embeds": [embed]}, timeout=10.0)
-    if response.status_code >= 300:
-        raise RuntimeError(
-            f"Discord webhook returned {response.status_code}: {response.text[:200]}"
+    # --- Bot REST API path (supports thread creation) ---
+    if bot_token and channel_id:
+        post_resp = httpx.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages",
+            headers=_discord_bot_headers(),
+            json={"embeds": [embed]},
+            timeout=10.0,
         )
-    logger.info("Discord alert sent for detection %s", detection.detection_id)
+        if post_resp.status_code >= 300:
+            raise RuntimeError(f"Discord post failed {post_resp.status_code}: {post_resp.text[:200]}")
+
+        message_id = post_resp.json()["id"]
+        thread_name = f"{detection.asset_tag} — {type_label}"[:100]
+
+        thread_resp = httpx.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/threads",
+            headers=_discord_bot_headers(),
+            json={"name": thread_name, "auto_archive_duration": 1440},
+            timeout=10.0,
+        )
+        if thread_resp.status_code >= 300:
+            raise RuntimeError(f"Discord thread creation failed {thread_resp.status_code}: {thread_resp.text[:200]}")
+
+        thread_id = thread_resp.json()["id"]
+
+        # Post a welcome message inside the thread
+        httpx.post(
+            f"https://discord.com/api/v10/channels/{thread_id}/messages",
+            headers=_discord_bot_headers(),
+            json={"content": "💬 Ask me anything about this alert — I have access to the full detection context, sensor trend, inspection history, and AI analysis."},
+            timeout=10.0,
+        )
+
+        logger.info("Discord alert posted with thread %s for detection %s", thread_id, detection.detection_id)
+        return thread_id
+
+    # --- Webhook fallback (no thread) ---
+    if webhook_url:
+        resp = httpx.post(webhook_url, json={"embeds": [embed]}, timeout=10.0)
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Discord webhook failed {resp.status_code}: {resp.text[:200]}")
+        logger.info("Discord alert sent via webhook for detection %s (no thread)", detection.detection_id)
+        return None
+
+    logger.warning("Discord not configured — skipping notification")
+    return None
 
 
 def send_teams_resolved(resolved: dict) -> None:
@@ -312,6 +354,12 @@ def send_teams_resolved(resolved: dict) -> None:
                             "spacing": "Small",
                             "isSubtle": True,
                         },
+                        *([{
+                            "type": "TextBlock",
+                            "text": f"**Resolution notes:** {resolved['resolution_notes']}",
+                            "wrap": True,
+                            "spacing": "Small",
+                        }] if resolved.get("resolution_notes") else []),
                     ],
                 },
             }
@@ -327,10 +375,14 @@ def send_teams_resolved(resolved: dict) -> None:
 
 
 def send_discord_resolved(resolved: dict) -> None:
-    """Post a Discord embed when an alert is marked resolved."""
+    """
+    Post a resolved notification to Discord.
+    Posts inside the alert thread when available, otherwise falls back to the channel/webhook.
+    """
+    bot_token = os.getenv("DISCORD_BOT_TOKEN")
+    channel_id = os.getenv("DISCORD_CHANNEL_ID")
     webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
-    if not webhook_url:
-        return
+    thread_id = resolved.get("discord_thread_id")
 
     type_label = DETECTION_TYPE_LABELS.get(resolved["detection_type"], resolved["detection_type"])
 
@@ -338,16 +390,42 @@ def send_discord_resolved(resolved: dict) -> None:
         "title": f"✅ Alert Resolved — {type_label}",
         "color": 0x57F287,
         "fields": [
-            {"name": "Asset",     "value": f"{resolved['asset_name']} (`{resolved['asset_tag']}`)", "inline": True},
-            {"name": "Area",      "value": resolved["area"] or "—",  "inline": True},
-            {"name": "Severity",  "value": resolved["severity"],      "inline": True},
-            {"name": "Resolved by", "value": resolved["resolved_by"], "inline": False},
+            {"name": "Asset",       "value": f"{resolved['asset_name']} (`{resolved['asset_tag']}`)", "inline": True},
+            {"name": "Area",        "value": resolved["area"] or "—",  "inline": True},
+            {"name": "Severity",    "value": resolved["severity"],      "inline": True},
+            {"name": "Resolved by", "value": resolved["resolved_by"],   "inline": False},
+            *([{"name": "Resolution notes", "value": resolved["resolution_notes"], "inline": False}] if resolved.get("resolution_notes") else []),
         ],
     }
 
-    response = httpx.post(webhook_url, json={"embeds": [embed]}, timeout=10.0)
-    if response.status_code >= 300:
-        raise RuntimeError(
-            f"Discord webhook returned {response.status_code}: {response.text[:200]}"
+    # Post inside the existing alert thread if we have one
+    if bot_token and thread_id:
+        resp = httpx.post(
+            f"https://discord.com/api/v10/channels/{thread_id}/messages",
+            headers=_discord_bot_headers(),
+            json={"embeds": [embed]},
+            timeout=10.0,
         )
-    logger.info("Discord resolved notification sent for detection %s", resolved["detection_id"])
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Discord resolved post failed {resp.status_code}: {resp.text[:200]}")
+        logger.info("Discord resolved notification posted in thread %s", thread_id)
+        return
+
+    # Fall back to channel message via bot or webhook
+    if bot_token and channel_id:
+        resp = httpx.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages",
+            headers=_discord_bot_headers(),
+            json={"embeds": [embed]},
+            timeout=10.0,
+        )
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Discord resolved channel post failed {resp.status_code}: {resp.text[:200]}")
+        logger.info("Discord resolved notification sent to channel for detection %s", resolved["detection_id"])
+        return
+
+    if webhook_url:
+        resp = httpx.post(webhook_url, json={"embeds": [embed]}, timeout=10.0)
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Discord webhook resolved failed {resp.status_code}: {resp.text[:200]}")
+        logger.info("Discord resolved notification sent via webhook for detection %s", resolved["detection_id"])

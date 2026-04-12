@@ -1,6 +1,6 @@
 # data-explorer
 
-Industrial asset monitoring web app for the Hackazona platform. Provides real-time dashboards, sensor trend charts, anomaly detection, maintenance tracking, and AI-powered RAG chat over SOPs and technical manuals.
+Industrial asset monitoring web app for the Artemis platform. Provides real-time dashboards, sensor trend charts, anomaly detection, maintenance tracking, AI-generated detection insights, and RAG chat over SOPs and technical manuals.
 
 ---
 
@@ -9,7 +9,8 @@ Industrial asset monitoring web app for the Hackazona platform. Provides real-ti
 - **Dashboard** — KPI cards, asset status grid, live anomaly feed, active work orders
 - **Asset Browser** — Hierarchical tree of 96 assets with drill-down to sensor data
 - **Asset Detail** — Recharts trend charts with alarm/trip threshold bands, health score, linked failures & work orders
-- **Anomalies** — Threshold breach detection feed (ALARM / TRIP levels)
+- **Detections** — Full list of threshold breaches and anomalies, filterable by severity, type, asset, and date
+- **Detection Detail** — AI-generated insight (what, why, evidence, recommended actions, confidence, remaining life), plus document citations with breadcrumb paths showing exactly which section of each document the AI used
 - **Maintenance** — Kanban work order board (OPEN → IN_PROGRESS → COMPLETED)
 - **Failures** — Event timeline with severity, root cause, production impact
 - **Knowledge Chat** — Streaming RAG chat over SOPs and technical manuals, with document source citations
@@ -163,8 +164,18 @@ sensor_metadata (175)    ← asset_id FK
 timeseries (3.07M)       ← sensor_id + asset_id FKs
                             Indexes: (sensorId, timestamp), (assetId, timestamp)
 
-assets ← failure_events (6)  ← work_orders (83)
-assets ← documents (11)         embedding: vector(1536) for pgvector RAG
+assets ← failure_events (6)
+assets ← work_orders (83)
+assets ← documents (11)      embedding: vector(1536) for pgvector RAG
+                             page_index_tree: jsonb — hierarchical section tree
+                             indexed_at: timestamptz
+
+detections               ← written by backend Layer 1
+  ↓                         resolved_at, resolved_by, resolution_notes, discord_thread_id
+insights                 ← written by backend Layer 3; FK → detections
+                            relevant_docs: jsonb — document citations with tree_path
+
+wiki_index               ← one row per indexed document; one_line_summary for LLM pre-filter
 ```
 
 ---
