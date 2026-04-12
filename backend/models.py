@@ -47,20 +47,34 @@ class SimulationScenario(str, Enum):
 
 
 # ---------------------------------------------------------------------------
-# Layer 1 — Detection output
+# Layer 1 — Ingest / Detection
 # ---------------------------------------------------------------------------
 
 
-class Detection(BaseModel):
-    detection_id: UUID
+class SensorReading(BaseModel):
+    sensor_id: str
     asset_id: str
-    detection_type: DetectionType
-    severity: Severity
-    signal_value: float
-    signal_unit: str
-    threshold: float
+    timestamp: datetime
+    value: float
+    unit: str
+    quality_flag: str  # GOOD | BAD | INTERPOLATED | OFFLINE | UNCERTAIN
+
+
+class IngestResponse(BaseModel):
+    written: bool
+    detections_fired: list[str]
+
+
+class DetectionRecord(BaseModel):
+    detection_id: str
     detected_at: datetime
-    raw_inputs: dict[str, Any]
+    detection_type: str
+    severity: str
+    asset_id: str
+    asset_tag: str
+    asset_name: str
+    area: str
+    detection_data: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------
@@ -73,13 +87,6 @@ class ParsedInspectionValues(BaseModel):
     coating_failure_pct: float | None = None
     corrosion_rate_mm_per_year: float | None = None
     remaining_allowance_mm: float | None = None
-
-
-class SensorReading(BaseModel):
-    timestamp: datetime
-    sensor_id: str
-    value: float
-    unit: str
 
 
 class RelevantDoc(BaseModel):

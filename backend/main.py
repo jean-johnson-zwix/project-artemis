@@ -8,26 +8,33 @@ Startup responsibilities:
 
 TODO:
   - Add CORS middleware if the frontend is on a different origin
-  - Add a GET /health endpoint (DB ping + scheduler status)
   - Add GET /detections and GET /detections/{detection_id} for the frontend
   - Add GET /assets/{asset_id} for the frontend asset detail page
 """
 
+import logging
+
 from fastapi import FastAPI
 
-from simulator import router as simulator_router  # noqa: F401
-
-app = FastAPI(title="Hackazona Detection API")
+from routers.detections import router as detections_router
+from routers.ingest import router as ingest_router
 
 # TODO: mount simulator router
-# app.include_router(simulator_router)
+# from simulator import router as simulator_router
 
 # TODO: start APScheduler on startup
 # @app.on_event("startup")
 # def start_scheduler():
 #     ...
 
-# TODO: GET /health
-# TODO: GET /detections
-# TODO: GET /detections/{detection_id}
-# TODO: GET /assets/{asset_id}
+logging.basicConfig(level=logging.INFO)
+
+app = FastAPI(title="Hackazona Detection API")
+
+app.include_router(ingest_router)
+app.include_router(detections_router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
