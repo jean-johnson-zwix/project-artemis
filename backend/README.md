@@ -1,6 +1,6 @@
 # backend — Artemis Detection Pipeline
 
-FastAPI service that ingests sensor readings, runs multi-stage detection, gathers context, and calls Azure OpenAI to produce structured insights. Insights are written to the DB, sent to MS Teams (Adaptive Card), and posted to Discord (per-alert threads). A companion Discord bot answers operator questions in those threads using the stored context.
+FastAPI service that ingests sensor readings, runs multi-stage detection, gathers context, and calls Azure OpenAI to produce structured insights. Insights are written to the DB, sent to MS Teams (Adaptive Card), posted to Discord (per-alert threads), and optionally create a Salesforce Case. A companion Discord bot answers operator questions in those threads using the stored context.
 
 ---
 
@@ -32,8 +32,11 @@ Fill in `.env`:
 | `DISCORD_CHANNEL_ID` | Layer 3 | Channel ID where alert threads are created |
 | `DISCORD_WEBHOOK_URL` | Layer 3 (fallback) | Webhook URL used if bot token is absent |
 | `FRONTEND_BASE_URL` | Layer 3 | Base URL for deep links (default: `http://localhost:3000`) |
+| `SALESFORCE_INSTANCE_URL` | Layer 3 (optional) | e.g. `https://<instance>.my.salesforce.com` |
+| `SALESFORCE_CLIENT_ID` | Layer 3 (optional) | Connected App consumer key |
+| `SALESFORCE_CLIENT_SECRET` | Layer 3 (optional) | Connected App consumer secret |
 
-Layer 1 only needs `DATABASE_URL`. Layer 2 and 3 need the Azure vars. Notifications need the Teams/Discord vars.
+Layer 1 only needs `DATABASE_URL`. Layer 2 and 3 need the Azure vars. Notifications need the Teams/Discord vars. Salesforce Case creation is optional — omit the vars to skip it.
 
 ---
 

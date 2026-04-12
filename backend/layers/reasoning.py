@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from db import save_discord_thread_id, write_insight
 from models import Confidence, DetectionContext, DetectionRecord, Insight
-from notifications import send_discord_alert, send_teams_alert
+from notifications import send_discord_alert, send_salesforce_case, send_teams_alert
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +73,11 @@ def run_reasoning(
             save_discord_thread_id(db, str(detection.detection_id), thread_id)
     except Exception as exc:
         logger.error("send_discord_alert failed for detection %s: %s", detection.detection_id, exc)
+
+    try:
+        send_salesforce_case(detection, insight)
+    except Exception as exc:
+        logger.error("send_salesforce_case failed for detection %s: %s", detection.detection_id, exc)
 
     return insight
 
