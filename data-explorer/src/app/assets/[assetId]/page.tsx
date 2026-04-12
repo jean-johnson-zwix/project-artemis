@@ -4,6 +4,7 @@ import { calculateHealthScore } from '@/lib/health'
 import SensorTrendChart from '@/components/assets/SensorTrendChart'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,9 @@ export default async function AssetDetailPage({
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#0f1419] to-[#1a1f2e]">
       <div className="p-6 max-w-full">
+        <Link href="/dashboard" className="text-[#00d9ff] hover:text-[#00d9ff] underline text-sm mb-4 inline-block">
+          ← Back to Dashboard
+        </Link>
         <div className="mb-8 flex items-start justify-between">
           <div>
             <p className="text-xs text-[#999999] mb-2 uppercase tracking-wider font-semibold">{asset.tag} · {asset.area}</p>
