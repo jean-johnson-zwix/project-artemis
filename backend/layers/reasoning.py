@@ -59,7 +59,7 @@ def run_reasoning(
     raw_json = _call_azure_openai(prompt)
     insight = _parse_insight(raw_json, detection.detection_id)
 
-    write_insight(db, insight)
+    write_insight(db, insight, context.relevant_docs)
     logger.info("Insight written for detection %s", detection.detection_id)
 
     try:
