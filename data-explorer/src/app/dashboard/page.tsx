@@ -34,48 +34,60 @@ export default async function DashboardPage() {
   const totalLoss = productionLoss._sum.productionLossBbl ?? 0
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-slate-400 text-sm mt-1">Industrial asset monitoring overview</p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KpiCard
-          title="Operating Assets"
-          value={statusMap['OPERATING'] ?? 0}
-          subtitle="Currently active"
-          variant="green"
-        />
-        <KpiCard
-          title="In Maintenance"
-          value={statusMap['MAINTENANCE'] ?? 0}
-          subtitle="Under maintenance"
-          variant="yellow"
-        />
-        <KpiCard
-          title="Open Work Orders"
-          value={openWoCount}
-          subtitle="Requiring attention"
-          variant={openWoCount > 10 ? 'red' : 'blue'}
-        />
-        <KpiCard
-          title="Critical Failures (30d)"
-          value={critFailures}
-          subtitle={`${totalLoss.toFixed(0)} bbl production loss`}
-          variant={critFailures > 0 ? 'red' : 'default'}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-5">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">Asset Status Overview</h2>
-          <AssetStatusGrid />
+    <div className="min-h-screen bg-gradient-to-br from-[#0f1419] to-[#1a1f2e]">
+      <div className="p-6 max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-white tracking-tight">Dashboard</h1>
+          <p className="text-[#999999] text-sm mt-2">Industrial asset monitoring & proactive AI insights</p>
         </div>
 
-        <div className="rounded-lg border border-slate-700 bg-slate-900 p-5">
-          <h2 className="text-sm font-semibold text-slate-300 mb-4">Recent Anomalies</h2>
-          <RecentAnomaliesTable />
+        {/* KPI Cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+          <KpiCard
+            title="Operating Assets"
+            value={statusMap['OPERATING'] ?? 0}
+            subtitle="Currently active"
+            variant="green"
+          />
+          <KpiCard
+            title="In Maintenance"
+            value={statusMap['MAINTENANCE'] ?? 0}
+            subtitle="Under maintenance"
+            variant="yellow"
+          />
+          <KpiCard
+            title="Standby Assets"
+            value={statusMap['STANDBY'] ?? 0}
+            subtitle="On standby"
+            variant="blue"
+          />
+          <KpiCard
+            title="Open Work Orders"
+            value={openWoCount}
+            subtitle="Requiring attention"
+            variant={openWoCount > 10 ? 'red' : 'blue'}
+          />
+          <KpiCard
+            title="Critical Failures (30d)"
+            value={critFailures}
+            subtitle={`${totalLoss.toFixed(0)} bbl loss`}
+            variant={critFailures > 0 ? 'red' : 'default'}
+          />
+        </div>
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-[6fr_4fr] gap-6">
+          {/* Asset Status Panel */}
+          <div className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm p-6 hover:border-[#00d9ff]/30 transition-all duration-150">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4 border-b border-[#333333] pb-3">Asset Status Overview</h2>
+            <AssetStatusGrid />
+          </div>
+
+          {/* Recent Anomalies Panel */}
+          <div className="rounded-sm border border-[#333333] bg-[#1f2535]/80 backdrop-blur-sm p-6 hover:border-[#ff6b35]/30 transition-all duration-150">
+            <h2 className="text-sm font-semibold text-white uppercase tracking-[0.5px] mb-4 border-b border-[#333333] pb-3">Recent Anomalies</h2>
+            <RecentAnomaliesTable />
+          </div>
         </div>
       </div>
     </div>

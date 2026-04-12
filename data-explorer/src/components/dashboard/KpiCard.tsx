@@ -8,27 +8,27 @@ interface KpiCardProps {
 }
 
 const variantStyles = {
-  green: 'border-green-500/30 bg-green-500/5',
-  yellow: 'border-yellow-500/30 bg-yellow-500/5',
-  red: 'border-red-500/30 bg-red-500/5',
-  blue: 'border-blue-500/30 bg-blue-500/5',
-  default: 'border-slate-700 bg-slate-800/50',
+  green: 'border-[#00ff9f]/30 bg-[#00ff9f]/5 hover:border-[#00ff9f]/50 hover:shadow-[0_0_20px_rgba(0,255,159,0.15)]',
+  yellow: 'border-[#ff6b35]/30 bg-[#ff6b35]/5 hover:border-[#ff6b35]/50 hover:shadow-[0_0_20px_rgba(255,107,53,0.15)]',
+  red: 'border-[#ff6b35]/30 bg-[#ff6b35]/5 hover:border-[#ff6b35]/50 hover:shadow-[0_0_20px_rgba(255,107,53,0.15)]',
+  blue: 'border-[#00d9ff]/30 bg-[#00d9ff]/5 hover:border-[#00d9ff]/50 hover:shadow-[0_0_20px_rgba(0,217,255,0.15)]',
+  default: 'border-[#333333] bg-[#1f2535]/30 hover:border-[#00d9ff]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)]',
 }
 
 const valueStyles = {
-  green: 'text-green-400',
-  yellow: 'text-yellow-400',
-  red: 'text-red-400',
-  blue: 'text-blue-400',
+  green: 'text-[#00ff9f]',
+  yellow: 'text-[#ff6b35]',
+  red: 'text-[#ff6b35]',
+  blue: 'text-[#00d9ff]',
   default: 'text-white',
 }
 
 export default function KpiCard({ title, value, subtitle, variant = 'default' }: KpiCardProps) {
   return (
-    <div className={cn('rounded-lg border p-5', variantStyles[variant])}>
-      <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">{title}</p>
+    <div className={cn('rounded-sm border p-5 transition-all duration-150 ease-in-out', variantStyles[variant])}>
+      <p className="text-xs font-semibold text-[#999999] uppercase tracking-[0.5px] mb-2">{title}</p>
       <p className={cn('text-3xl font-bold', valueStyles[variant])}>{value}</p>
-      {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+      {subtitle && <p className="text-xs text-[#666666] mt-1">{subtitle}</p>}
     </div>
   )
 }

@@ -14,7 +14,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <body className="h-full bg-slate-950 text-slate-100 antialiased font-sans">
+      <body className="h-full bg-gradient-to-br from-[#0f1419] via-[#14191f] to-[#1a1f2e] text-white antialiased font-sans">
         <Sidebar />
         <main className="ml-56 min-h-screen">{children}</main>
       </body>
