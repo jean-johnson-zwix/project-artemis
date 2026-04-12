@@ -1,5 +1,5 @@
 .PHONY: setup migrate migrate-dev seed dev-frontend dev-backend \
-        docker-up docker-up-discord docker-down docker-reset
+        docker-up docker-down docker-reset
 
 # ---------------------------------------------------------------------------
 # First-time setup
@@ -38,9 +38,6 @@ dev-backend:
 # ---------------------------------------------------------------------------
 docker-up:
 	docker compose up
-
-docker-up-discord:
-	docker compose --profile discord up
 
 docker-down:
 	docker compose down

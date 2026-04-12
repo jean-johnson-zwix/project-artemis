@@ -5,10 +5,7 @@ version: "3.9"
 #
 # Quick start:
 #   cp .env.example .env          # fill in API keys
-#   docker compose up             # DB + migrate/seed + frontend + backend
-#
-# Include the Discord bot:
-#   docker compose --profile discord up
+#   docker compose up             # DB + migrate/seed + frontend + backend + bot
 #
 # Reset everything (wipes the DB volume):
 #   docker compose down -v
@@ -97,8 +94,7 @@ services:
 
   # -------------------------------------------------------------------------
   # Discord bot — interactive Q&A in alert threads
-  # Only started when the `discord` profile is active:
-  #   docker compose --profile discord up
+  # Exits cleanly (no restart loop) if DISCORD_BOT_TOKEN is not set.
   # -------------------------------------------------------------------------
   bot:
     build:
@@ -116,8 +112,6 @@ services:
       migrate:
         condition: service_completed_successfully
     restart: unless-stopped
-    profiles:
-      - discord
 
 volumes:
   pgdata:

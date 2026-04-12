@@ -26,15 +26,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import discord
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 
-from db import SessionLocal, get_detection_context_for_thread
-
 load_dotenv()
+
+if not os.getenv("DISCORD_BOT_TOKEN"):
+    print("DISCORD_BOT_TOKEN not set — bot disabled, exiting cleanly.")
+    sys.exit(0)
+
+from db import SessionLocal, get_detection_context_for_thread
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)

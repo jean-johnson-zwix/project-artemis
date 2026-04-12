@@ -118,11 +118,7 @@ make docker-up
 | Backend API / docs | http://localhost:8000/docs |
 | PostgreSQL | localhost:5433 |
 
-To also start the Discord bot:
-
-```bash
-make docker-up-discord
-```
+The Discord bot starts automatically. If `DISCORD_BOT_TOKEN` is not set it exits cleanly — no restart loop, no noise in the logs.
 
 To wipe the database and start fresh:
 
