@@ -8,15 +8,19 @@ POST /documents/ingest
 """
 
 import logging
-import uuid
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import text
 
 from db import SessionLocal
 from layers.indexing import build_page_index
 from models import DocumentIngestRequest
+
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "uploads"))
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +52,13 @@ async def ingest_document(body: DocumentIngestRequest, background_tasks: Backgro
         db.execute(
             text(
                 "INSERT INTO documents "
-                "(doc_id, asset_id, doc_type, title, revision, author, issue_date, content) "
-                "VALUES (:did, :aid, :dtype, :title, :rev, :author, :idate, :content) "
+                "(doc_id, asset_id, doc_type, title, revision, author, issue_date, content, file_path) "
+                "VALUES (:did, :aid, :dtype, :title, :rev, :author, :idate, :content, :file_path) "
                 "ON CONFLICT (doc_id) DO UPDATE "
                 "SET content = EXCLUDED.content, "
                 "    doc_type = EXCLUDED.doc_type, "
                 "    title = EXCLUDED.title, "
+                "    file_path = EXCLUDED.file_path, "
                 "    indexed_at = NULL"  # force re-indexing on content update
             ),
             {
@@ -65,6 +70,7 @@ async def ingest_document(body: DocumentIngestRequest, background_tasks: Backgro
                 "author": body.author,
                 "idate": body.issue_date,
                 "content": body.content,
+                "file_path": body.file_path,
             },
         )
         db.commit()
@@ -79,6 +85,47 @@ async def ingest_document(body: DocumentIngestRequest, background_tasks: Backgro
     logger.info("Document %s ingested — PageIndex build queued", body.doc_id)
 
     return {"doc_id": body.doc_id, "status": "indexing"}
+
+
+@router.get("/{doc_id}/download")
+async def download_document(doc_id: str):
+    """
+    Download a document as a file.
+    If the document has a file_path stored, serves that file directly from
+    local storage (any location, any format). Otherwise falls back to the
+    ingested text content as a .txt file.
+    Returns 404 if the document does not exist in the DB.
+    """
+    db = SessionLocal()
+    try:
+        row = db.execute(
+            text("SELECT title, content FROM documents WHERE doc_id = :did"),
+            {"did": doc_id},
+        ).fetchone()
+    finally:
+        db.close()
+
+    if not row:
+        return Response(status_code=404, content="not_found")
+
+    title, content = row
+
+    # Serve PDF if one exists in uploads/ named <doc_id>.pdf
+    pdf_path = UPLOADS_DIR / f"{doc_id}.pdf"
+    if pdf_path.exists():
+        return FileResponse(
+            path=str(pdf_path),
+            media_type="application/pdf",
+            filename=pdf_path.name,
+        )
+
+    # Fall back to text content from DB
+    safe_title = "".join(c if c.isalnum() or c in (" ", "-", "_") else "_" for c in (title or doc_id))
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{safe_title}.txt"'},
+    )
 
 
 @router.get("/{doc_id}/status")

@@ -42,3 +42,12 @@ yarn-error.log*
 next-env.d.ts
 
 # data files tracked via Git LFS
+data/
+tasks.md
+pageindex.md
+llm_wiki.md
+functional_requirements.md
+for_me.md
+backend/Layer2_Plan.md
+backend/Layer3_Plan.md
+ideas.md

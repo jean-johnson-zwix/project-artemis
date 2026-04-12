@@ -400,16 +400,18 @@ def _search_documents_keyword(
     words = [w for w in query.split() if w.lower() not in stopwords]
     keyword = words[0] if words else query.split()[0]
 
+    # Match exact asset, same area (asset_id starts with area prefix), or unlinked docs
+    area_prefix = asset_id.split(":")[0] if ":" in asset_id else asset_id
     rows = db.execute(
         text(
             "SELECT doc_id, title, doc_type, LEFT(content, 400) AS snippet "
             "FROM documents "
-            "WHERE (asset_id = :aid OR asset_id IS NULL) "
+            "WHERE (asset_id = :aid OR asset_id LIKE :area OR asset_id IS NULL) "
             "  AND content ILIKE :kw "
             "ORDER BY issue_date DESC "
             "LIMIT 5"
         ),
-        {"aid": asset_id, "kw": f"%{keyword}%"},
+        {"aid": asset_id, "area": f"{area_prefix}:%", "kw": f"%{keyword}%"},
     ).fetchall()
 
     return [RelevantDoc(doc_id=r[0], title=r[1], doc_type=r[2], snippet=r[3]) for r in rows]

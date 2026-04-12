@@ -59,6 +59,24 @@ def api_request(method: str, base_url: str, path: str, payload: dict[str, Any] |
         return False, getattr(exc.response, "text", str(exc))
 
 
+def api_download(base_url: str, doc_id: str) -> tuple[bytes | None, str]:
+    """
+    Fetch a document file from GET /documents/{doc_id}/download.
+    Returns (content_bytes, filename) on success, or (None, error_message) on failure.
+    """
+    url = f"{base_url.rstrip('/')}/documents/{doc_id}/download"
+    try:
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        disposition = response.headers.get("Content-Disposition", "")
+        filename = doc_id
+        if 'filename="' in disposition:
+            filename = disposition.split('filename="')[1].rstrip('"')
+        return response.content, filename
+    except requests.RequestException as exc:
+        return None, str(exc)
+
+
 @st.cache_data(ttl=10)
 def fetch_detection_demo_data(database_url: str) -> dict[str, pd.DataFrame]:
     engine = get_engine(database_url)
@@ -106,6 +124,7 @@ def fetch_detection_demo_data(database_url: str) -> dict[str, pd.DataFrame]:
 
     with engine.connect() as conn:
         return {name: pd.read_sql(text(query), conn) for name, query in queries.items()}
+
 
 
 @st.cache_data(ttl=10)
@@ -272,9 +291,19 @@ def render_alert_details(selected_asset: pd.Series, detections_df: pd.DataFrame,
     else:
         st.caption("No root-cause explanation available.")
 
-    evidence = selected["evidence"] if isinstance(selected["evidence"], list) else []
-    actions = selected["recommended_actions"] if isinstance(selected["recommended_actions"], list) else []
-    docs = selected["relevant_docs"] if isinstance(selected["relevant_docs"], list) else []
+    def _parse_json_list(value: Any) -> list:
+        if isinstance(value, list):
+            return value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except (ValueError, TypeError):
+                return []
+        return []
+
+    evidence = _parse_json_list(selected["evidence"])
+    actions = _parse_json_list(selected["recommended_actions"])
+    docs = _parse_json_list(selected["relevant_docs"])
 
     supporting_col, response_col = st.columns(2, gap="large")
     with supporting_col:
@@ -291,8 +320,22 @@ def render_alert_details(selected_asset: pd.Series, detections_df: pd.DataFrame,
                 doc_id = doc.get("doc_id", "unknown-doc")
                 tree_path = doc.get("tree_path")
                 reason = infer_document_relevance_reason(selected["detection_type"], doc)
-                st.write(f"**{doc.get('title', 'Document')}**")
-                st.caption(f"Document ID: {doc_id}")
+                title_col, dl_col = st.columns([3, 1])
+                with title_col:
+                    st.write(f"**{doc.get('title', 'Document')}**")
+                    st.caption(f"Document ID: {doc_id}")
+                with dl_col:
+                    file_bytes, filename = api_download(api_base_url, doc_id)
+                    if file_bytes is not None:
+                        mime = "application/pdf" if filename.endswith(".pdf") else "text/plain"
+                        st.download_button(
+                            label="Download",
+                            data=file_bytes,
+                            file_name=filename,
+                            mime=mime,
+                            key=f"dl-{selected['detection_id']}-{doc_id}",
+                            use_container_width=True,
+                        )
                 with st.expander("Show relevance"):
                     st.write(f"**Why it's relevant:** {reason}")
                     if tree_path:

@@ -175,6 +175,7 @@ class DocumentIngestRequest(BaseModel):
     author: str | None = None
     issue_date: datetime | None = None
     content: str
+    file_path: str | None = None  # absolute path to a local file (e.g. PDF) for download
 
 
 # ---------------------------------------------------------------------------
