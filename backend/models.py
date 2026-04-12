@@ -1,3 +1,10 @@
+"""
+Shared Pydantic models for the detection pipeline.
+
+Agree on these shapes before splitting work across layers.
+All layers import from here — do not define models inline.
+"""
+
 from __future__ import annotations
 
 from datetime import datetime
