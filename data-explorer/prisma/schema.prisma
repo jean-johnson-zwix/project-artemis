@@ -233,6 +233,7 @@ model Insight {
   confidence         String
   remainingLifeYears Float?    @map("remaining_life_years")
   recommendedActions Json      @map("recommended_actions")
+  relevantDocs       Json?     @map("relevant_docs")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 
   @@index([detectionId])
