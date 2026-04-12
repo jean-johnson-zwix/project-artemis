@@ -1,8 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
+import { format, formatISO } from 'date-fns'
 import Link from 'next/link'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
 interface Anomaly {
   sensorId: string
@@ -21,6 +22,13 @@ const anomalyColors: Record<string, string> = {
   TRIP_LOW: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
   ALARM_HIGH: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
   ALARM_LOW: 'bg-[#ff6b35]/10 text-[#ff6b35] border-[#ff6b35]/30',
+}
+
+const anomalyTooltips: Record<string, string> = {
+  TRIP_HIGH: 'Trip — sensor exceeded the upper trip threshold. Asset may have shut down.',
+  TRIP_LOW: 'Trip — sensor fell below the lower trip threshold. Asset may have shut down.',
+  ALARM_HIGH: 'Alarm — sensor exceeded the upper alarm threshold. Requires investigation.',
+  ALARM_LOW: 'Alarm — sensor fell below the lower alarm threshold. Requires investigation.',
 }
 
 export default function RecentAnomaliesTable() {
@@ -59,9 +67,16 @@ export default function RecentAnomaliesTable() {
           {anomalies.map((a, i) => (
             <tr key={`${a.sensorId}-${i}`} className="border-b border-[#1f2535] hover:bg-[#1f2535]/40 transition-colors">
               <td className="py-3 px-3">
-                <span className={`text-xs px-1.5 py-0.5 rounded-sm border font-semibold ${anomalyColors[a.anomalyType] ?? ''}`}>
-                  {a.anomalyType}
-                </span>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className={`text-xs px-1.5 py-0.5 rounded-sm border font-semibold ${anomalyColors[a.anomalyType] ?? ''}`} />
+                    }
+                  >
+                    {a.anomalyType}
+                  </TooltipTrigger>
+                  <TooltipContent>{anomalyTooltips[a.anomalyType] ?? a.anomalyType}</TooltipContent>
+                </Tooltip>
               </td>
               <td className="py-3 px-3">
                 <div className="flex flex-col gap-0.5">
@@ -72,7 +87,14 @@ export default function RecentAnomaliesTable() {
                 </div>
               </td>
               <td className="py-3 px-3 text-right text-[#666666]">
-                {format(new Date(a.timestamp), 'MMM d HH:mm')}
+                <Tooltip>
+                  <TooltipTrigger render={<span />}>
+                    {format(new Date(a.timestamp), 'MMM d HH:mm')}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {formatISO(new Date(a.timestamp)).replace('T', ' ').substring(0, 19)} UTC
+                  </TooltipContent>
+                </Tooltip>
               </td>
             </tr>
           ))}
