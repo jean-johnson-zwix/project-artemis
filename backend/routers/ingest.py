@@ -2,8 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -13,12 +12,11 @@ from detection.divergence import check_divergence
 from detection.statistical import check_statistical
 from detection.threshold import check_threshold
 from models import DetectionRecord, IngestResponse, SensorReading
+from routers.detections import _process_detection
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-LAYER2_URL = "http://localhost:8000/detections"
 
 COOLDOWNS = {
     "SENSOR_ANOMALY": 1,
@@ -43,15 +41,8 @@ def _is_duplicate(db: Session, asset_id: str, detection_type: str, cooldown_hour
 
 
 
-def _fire_webhook(detection: DetectionRecord) -> None:
-    try:
-        httpx.post(LAYER2_URL, json=detection.model_dump(mode="json"), timeout=5.0)
-    except Exception as exc:
-        logger.warning("Layer 2 webhook failed: %s", exc)
-
-
 @router.post("/ingest/reading", response_model=IngestResponse)
-def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
+def ingest_reading(reading: SensorReading, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     # 1. Load sensor metadata
     meta_row = db.execute(
         text("SELECT * FROM sensor_metadata WHERE sensor_id = :sid"),
@@ -116,7 +107,7 @@ def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
             return
         record = _make_record(detection_type, result)
         write_detection(db, record)
-        _fire_webhook(record)
+        background_tasks.add_task(_process_detection, record)
         fired_detections.append(record)
 
     # 4a. Threshold detection
