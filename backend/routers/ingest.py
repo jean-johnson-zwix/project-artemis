@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from db import get_db
+from db import get_db, write_detection
 from detection.corrosion import check_corrosion
 from detection.divergence import check_divergence
 from detection.statistical import check_statistical
@@ -41,27 +41,6 @@ def _is_duplicate(db: Session, asset_id: str, detection_type: str, cooldown_hour
     ).fetchone()
     return row is not None
 
-
-def _write_detection(db: Session, record: DetectionRecord) -> None:
-    db.execute(
-        text(
-            "INSERT INTO detections "
-            "(detection_id, detected_at, detection_type, severity, asset_id, asset_tag, asset_name, area, detection_data) "
-            "VALUES (:id, :detected_at, :type, :severity, :asset_id, :asset_tag, :asset_name, :area, CAST(:data AS jsonb))"
-        ),
-        {
-            "id": record.detection_id,
-            "detected_at": record.detected_at,
-            "type": record.detection_type,
-            "severity": record.severity,
-            "asset_id": record.asset_id,
-            "asset_tag": record.asset_tag,
-            "asset_name": record.asset_name,
-            "area": record.area,
-            "data": __import__("json").dumps(record.detection_data),
-        },
-    )
-    db.commit()
 
 
 def _fire_webhook(detection: DetectionRecord) -> None:
@@ -136,7 +115,7 @@ def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
         if _is_duplicate(db, reading.asset_id, detection_type, cooldown):
             return
         record = _make_record(detection_type, result)
-        _write_detection(db, record)
+        write_detection(db, record)
         _fire_webhook(record)
         fired_detections.append(record)
 
