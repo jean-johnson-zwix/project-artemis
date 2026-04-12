@@ -3,19 +3,19 @@ Database connection and session management.
 
 Provides:
   - get_db(): FastAPI dependency that yields a SQLAlchemy session
-  - write_detection(detection): persist a DetectionRecord to the detections table
-  - write_insight(insight): persist an Insight record to the insights table (TODO)
-  - get_detection(detection_id): fetch a single Detection by ID (TODO)
+  - write_detection(db, detection): persist a DetectionRecord to the detections table
+  - write_insight(db, insight): persist an Insight to the insights table
 """
 
 import json
 import os
+import uuid
 
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from models import DetectionRecord
+from models import DetectionRecord, Insight, RelevantDoc
 
 load_dotenv()
 
@@ -57,11 +57,31 @@ def write_detection(db: Session, record: DetectionRecord) -> None:
     db.commit()
 
 
-def write_insight(insight) -> None:
-    """Persist an Insight record to the insights table."""
-    raise NotImplementedError
-
-
-def get_detection(detection_id) -> None:
-    """Fetch a single Detection by ID."""
-    raise NotImplementedError
+def write_insight(
+    db: Session,
+    insight: Insight,
+    relevant_docs: list[RelevantDoc] | None = None,
+) -> None:
+    """Persist an Insight to the insights table, including relevant_docs if provided."""
+    docs_json = json.dumps([d.model_dump() for d in relevant_docs]) if relevant_docs else None
+    db.execute(
+        text(
+            "INSERT INTO insights "
+            "(insight_id, detection_id, what, why, evidence, confidence, "
+            " remaining_life_years, recommended_actions, relevant_docs) "
+            "VALUES (:id, :did, :what, :why, CAST(:evidence AS jsonb), :confidence, "
+            "        :rl, CAST(:actions AS jsonb), CAST(:docs AS jsonb))"
+        ),
+        {
+            "id": str(uuid.uuid4()),
+            "did": str(insight.detection_id),
+            "what": insight.what,
+            "why": insight.why,
+            "evidence": json.dumps(insight.evidence),
+            "confidence": insight.confidence.value,
+            "rl": insight.remaining_life_years,
+            "actions": json.dumps(insight.recommended_actions),
+            "docs": docs_json,
+        },
+    )
+    db.commit()
