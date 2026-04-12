@@ -1,8 +1,12 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { parse } from 'csv-parse'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as dotenv from 'dotenv'
+
+const documentEmbeddings: Record<string, string> = JSON.parse(
+  fs.readFileSync(path.join(__dirname, 'seeds/documentEmbeddings.json'), 'utf-8')
+)
 
 dotenv.config()
 
@@ -167,6 +171,27 @@ async function seedDocuments() {
   console.log(`  Inserted ${inserted} documents`)
 }
 
+async function seedDocumentEmbeddings() {
+  console.log('Seeding document embeddings...')
+  let inserted = 0
+  for (const [docId, embedding] of Object.entries(documentEmbeddings)) {
+    await prisma.$executeRaw(
+      Prisma.sql`UPDATE documents SET embedding = ${embedding}::vector WHERE doc_id = ${docId}`
+    )
+    inserted++
+  }
+  try {
+    await prisma.$executeRaw`
+      CREATE INDEX IF NOT EXISTS documents_embedding_idx
+      ON documents USING ivfflat (embedding vector_cosine_ops)
+      WITH (lists = 10)
+    `
+  } catch {
+    // index may already exist
+  }
+  console.log(`  Updated ${inserted} document embeddings`)
+}
+
 async function seedWorkOrders() {
   console.log('Seeding work orders...')
   const rows = await readCsv<Record<string, string>>(csvPath('maintenance_history.csv'))
@@ -278,6 +303,7 @@ async function main() {
   await seedSensors()
   await seedFailureEvents()
   await seedDocuments()
+  await seedDocumentEmbeddings()
   await seedWorkOrders()
   await seedTimeseries()
 
