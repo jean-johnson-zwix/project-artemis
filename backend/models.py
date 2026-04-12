@@ -12,7 +12,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 # ---------------------------------------------------------------------------
@@ -94,6 +94,7 @@ class RelevantDoc(BaseModel):
     title: str
     doc_type: str
     snippet: str
+    tree_path: str | None = None  # breadcrumb from PageIndex navigation, e.g. "Section 3 › 3.2 Wall Thickness"
 
 
 class DetectionContext(BaseModel):
@@ -118,6 +119,54 @@ class Insight(BaseModel):
     confidence: Confidence
     remaining_life_years: float | None
     recommended_actions: list[str]
+
+
+# ---------------------------------------------------------------------------
+# PageIndex — tree structure and retrieval models
+# ---------------------------------------------------------------------------
+
+
+class PageIndexNode(BaseModel):
+    """One node in the hierarchical document tree. Recursive via `nodes`."""
+    title: str
+    node_id: str
+    start_index: int = Field(description="Character offset into raw document text where this section starts")
+    end_index: int = Field(description="Character offset into raw document text where this section ends")
+    summary: str = Field(description="One-paragraph summary of this section. MUST list all asset tags (e.g. V-101, PT-101-PV) mentioned in this section.")
+    nodes: list[PageIndexNode] = Field(default_factory=list)
+
+PageIndexNode.model_rebuild()
+
+
+class NodeSelection(BaseModel):
+    """Instructor-enforced output of tree navigation — which node is most relevant."""
+    node_id: str
+    tree_path: str = Field(description="Human-readable breadcrumb, e.g. 'Inspection Report › Section 3 › 3.2 Wall Thickness'")
+    start_index: int
+    end_index: int
+    reasoning: str = Field(description="One sentence explaining why this node is most relevant to the detection")
+
+
+class CandidateSelection(BaseModel):
+    """Instructor-enforced output of wiki index selector — which doc_ids to tree-search."""
+    doc_ids: list[str] = Field(description="2-3 most relevant doc_ids from the wiki index, ordered by relevance")
+    reasoning: str = Field(description="One sentence explaining the selection")
+
+
+# ---------------------------------------------------------------------------
+# Document ingestion
+# ---------------------------------------------------------------------------
+
+
+class DocumentIngestRequest(BaseModel):
+    doc_id: str
+    asset_id: str | None = None
+    doc_type: str
+    title: str
+    revision: str | None = None
+    author: str | None = None
+    issue_date: datetime | None = None
+    content: str
 
 
 # ---------------------------------------------------------------------------

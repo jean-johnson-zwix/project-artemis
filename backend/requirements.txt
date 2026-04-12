@@ -8,3 +8,4 @@ apscheduler
 pydantic
 pydantic-settings
 openai
+instructor>=1.0

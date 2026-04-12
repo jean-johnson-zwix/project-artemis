@@ -241,19 +241,36 @@ model Insight {
 }
 
 model Document {
-  id         String    @id @map("doc_id")
-  assetId    String?   @map("asset_id")
-  asset      Asset?    @relation(fields: [assetId], references: [id])
-  docType    String    @map("doc_type")
-  title      String
-  revision   String?
-  author     String?
-  approvedBy String?   @map("approved_by")
-  issueDate  DateTime? @map("issue_date")
-  content    String
-  embedding  Unsupported("vector(1536)")?
+  id            String    @id @map("doc_id")
+  assetId       String?   @map("asset_id")
+  asset         Asset?    @relation(fields: [assetId], references: [id])
+  docType       String    @map("doc_type")
+  title         String
+  revision      String?
+  author        String?
+  approvedBy    String?   @map("approved_by")
+  issueDate     DateTime? @map("issue_date")
+  content       String
+  embedding     Unsupported("vector(1536)")?
+  pageIndexTree Json?     @map("page_index_tree")
+  indexedAt     DateTime? @map("indexed_at") @db.Timestamptz()
+
+  wikiIndex     WikiIndex?
 
   @@index([assetId])
   @@index([docType])
+  @@index([indexedAt])
   @@map("documents")
+}
+
+model WikiIndex {
+  docId          String   @id @map("doc_id")
+  document       Document @relation(fields: [docId], references: [id], onDelete: Cascade)
+  docType        String   @map("doc_type")
+  title          String
+  oneLineSummary String   @map("one_line_summary")
+  updatedAt      DateTime @default(now()) @map("updated_at") @db.Timestamptz()
+
+  @@index([docType])
+  @@map("wiki_index")
 }
