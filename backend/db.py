@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from models import DetectionRecord, Insight
+from models import DetectionRecord, Insight, RelevantDoc
 
 load_dotenv()
 
@@ -57,15 +57,20 @@ def write_detection(db: Session, record: DetectionRecord) -> None:
     db.commit()
 
 
-def write_insight(db: Session, insight: Insight) -> None:
-    """Persist an Insight to the insights table."""
+def write_insight(
+    db: Session,
+    insight: Insight,
+    relevant_docs: list[RelevantDoc] | None = None,
+) -> None:
+    """Persist an Insight to the insights table, including relevant_docs if provided."""
+    docs_json = json.dumps([d.model_dump() for d in relevant_docs]) if relevant_docs else None
     db.execute(
         text(
             "INSERT INTO insights "
             "(insight_id, detection_id, what, why, evidence, confidence, "
-            " remaining_life_years, recommended_actions) "
+            " remaining_life_years, recommended_actions, relevant_docs) "
             "VALUES (:id, :did, :what, :why, CAST(:evidence AS jsonb), :confidence, "
-            "        :rl, CAST(:actions AS jsonb))"
+            "        :rl, CAST(:actions AS jsonb), CAST(:docs AS jsonb))"
         ),
         {
             "id": str(uuid.uuid4()),
@@ -76,6 +81,7 @@ def write_insight(db: Session, insight: Insight) -> None:
             "confidence": insight.confidence.value,
             "rl": insight.remaining_life_years,
             "actions": json.dumps(insight.recommended_actions),
+            "docs": docs_json,
         },
     )
     db.commit()
