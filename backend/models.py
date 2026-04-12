@@ -127,5 +127,5 @@ class Insight(BaseModel):
 
 class SimulateEventRequest(BaseModel):
     scenario: SimulationScenario
-    asset_id: str = "V-101"
+    asset_id: str = "AREA-HP-SEP:V-101"
     overrides: dict[str, Any] = {}
