@@ -22,7 +22,6 @@ cp .env.example .env
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Postgres connection string (same DB as `data-explorer`) |
-| `LAYER2_WEBHOOK_URL` | Layer 2 service URL — leave blank to disable |
 
 ---
 

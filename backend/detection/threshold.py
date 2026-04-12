@@ -35,7 +35,7 @@ def check_threshold(
         "severity": severity,
         "detection_data": {
             "sensor_id": sensor_meta["sensor_id"],
-            "sensor_tag": sensor_meta.get("sensor_tag"),
+            "sensor_tag": sensor_meta.get("tag"),
             "sensor_type": sensor_meta.get("sensor_type"),
             "anomaly_value": reading_value,
             "anomaly_unit": reading_unit,

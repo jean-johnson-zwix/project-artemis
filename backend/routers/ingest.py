@@ -1,5 +1,4 @@
 import logging
-import os
 import uuid
 from datetime import datetime, timezone
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-LAYER2_WEBHOOK_URL = os.getenv("LAYER2_WEBHOOK_URL")
+LAYER2_URL = "http://localhost:8000/detections"
 
 COOLDOWNS = {
     "SENSOR_ANOMALY": 1,
@@ -48,7 +47,7 @@ def _write_detection(db: Session, record: DetectionRecord) -> None:
         text(
             "INSERT INTO detections "
             "(detection_id, detected_at, detection_type, severity, asset_id, asset_tag, asset_name, area, detection_data) "
-            "VALUES (:id, :detected_at, :type, :severity, :asset_id, :asset_tag, :asset_name, :area, :data::jsonb)"
+            "VALUES (:id, :detected_at, :type, :severity, :asset_id, :asset_tag, :asset_name, :area, CAST(:data AS jsonb))"
         ),
         {
             "id": record.detection_id,
@@ -66,10 +65,8 @@ def _write_detection(db: Session, record: DetectionRecord) -> None:
 
 
 def _fire_webhook(detection: DetectionRecord) -> None:
-    if not LAYER2_WEBHOOK_URL:
-        return
     try:
-        httpx.post(LAYER2_WEBHOOK_URL, json=detection.model_dump(mode="json"), timeout=5.0)
+        httpx.post(LAYER2_URL, json=detection.model_dump(mode="json"), timeout=5.0)
     except Exception as exc:
         logger.warning("Layer 2 webhook failed: %s", exc)
 
@@ -102,8 +99,8 @@ def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
     # 3. Write reading to timeseries
     db.execute(
         text(
-            "INSERT INTO timeseries (timestamp, sensor_id, asset_id, sensor_type, value, unit, quality_flag) "
-            'VALUES (:ts, :sid, :aid, :stype, :val, :unit, :qf::"QualityFlag")'
+            'INSERT INTO timeseries (timestamp, sensor_id, asset_id, sensor_type, value, unit, quality_flag) '
+            'VALUES (:ts, :sid, :aid, CAST(:stype AS "SensorType"), :val, :unit, CAST(:qf AS "QualityFlag"))'
         ),
         {
             "ts": reading.timestamp,
@@ -185,6 +182,11 @@ def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
         ).fetchone()
 
         if other_row is not None:
+            # timeseries timestamps are stored as naive UTC — make aware for comparison
+            other_ts = other_row[1]
+            if other_ts.tzinfo is None:
+                other_ts = other_ts.replace(tzinfo=timezone.utc)
+
             other_meta = db.execute(
                 text("SELECT tag FROM sensor_metadata WHERE sensor_id = :sid"),
                 {"sid": other_id},
@@ -201,7 +203,7 @@ def ingest_reading(reading: SensorReading, db: Session = Depends(get_db)):
                 current_timestamp=reading.timestamp,
                 other_sensor_id=other_id,
                 other_value=other_row[0],
-                other_timestamp=other_row[1],
+                other_timestamp=other_ts,
                 unit=reading.unit,
                 sensor_tags=sensor_tags,
             )
