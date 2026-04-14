@@ -182,3 +182,5 @@ make seed           # seed the database (safe to re-run)
 ```
 
 For per-service details see [data-explorer/README.md](./data-explorer/README.md) and [backend/README.md](./backend/README.md).
+
+Integrations included: Discord, Teams and Salesforce. 
