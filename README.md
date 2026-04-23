@@ -56,7 +56,7 @@ When an alert is resolved:
 ## Key Features
 
 - **Multi-stage detection** — threshold, statistical (Z-score), transmitter divergence, and corrosion lifetime estimation
-- **PageIndex RAG** — LLM-navigates a hierarchical document tree to extract the most relevant section from inspection reports and SOPs, not just the nearest embedding
+- **PageIndex RAG** — LLM-navigates a hierarchical document tree to extract the most relevant section from inspection reports and SOPs, not just the nearest embedding. Benchmarked against flat vector search (same embedding model): **100% Recall@3 vs 33%, MRR 0.889 vs 0.333, 38% less cross-document noise**
 - **Structured AI insights** — what, why, evidence, confidence, remaining life, recommended actions; all grounded in real context
 - **Document citations** — each insight cites the exact document sections used, with breadcrumb path shown in the UI
 - **Historical resolution context** — past resolutions for the same asset and detection type are fed into the reasoning prompt
@@ -64,6 +64,40 @@ When an alert is resolved:
 - **Discord Q&A bot** — operators ask questions in the alert thread; bot answers from stored detection context
 - **Asset status lifecycle** — `OPERATING → MAINTENANCE/STANDBY` on detection, restored on resolution
 - **Simulation scenarios** — corrosion spike, sensor anomaly, transmitter divergence, inspection overdue
+
+---
+
+## Benchmarks
+
+### Layer 1 — Statistical Gating
+
+Ran against 3M+ sensor readings across 175 sensors:
+
+| Metric | Result |
+|---|---|
+| Readings handled by Layer 1 (no LLM) | **95.7%** |
+| Estimated Azure OpenAI cost reduction | **~96%** |
+
+### Layer 2 — Agentic RAG vs Naive Vector Search
+
+6 hand-labeled queries across all detection types, same embedding model (`all-MiniLM-L6-v2`), 11-document corpus:
+
+| Metric | Agentic RAG | Naive RAG |
+|---|---|---|
+| Recall@3 (correct doc in top 3) | **100%** | 33% |
+| MRR (mean reciprocal rank) | **0.889** | 0.333 |
+| Cross-document noise | **42%** | 80% |
+| Section keyword precision@1 | **83%** | 50% |
+
+The routing advantage compounds at production scale — the flat index has ~40× more confounding chunks while the agentic Stage 2 search space stays constant at 2 candidate documents.
+
+Run the benchmarks locally:
+
+```bash
+cd backend
+python ../benchmark_layer1.py   # Layer 1 detection rate across 3M readings
+python ../benchmark_rag.py      # RAG retrieval quality comparison
+```
 
 ---
 
