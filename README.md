@@ -24,27 +24,7 @@ artemis/
 
 ## How It Works
 
-```
-Sensor reading
-    │
-    ▼
-Layer 1 — Detection
-    Threshold breach / Z-score anomaly / Transmitter divergence / Corrosion life
-    │
-    ▼ (background task)
-Layer 2 — Context
-    Sensor trend · PageIndex document retrieval · Work orders · Past resolutions
-    │
-    ▼
-Layer 3 — Reasoning
-    Azure OpenAI (gpt-4o-mini) → structured Insight
-    │
-    ├──▶ MS Teams Adaptive Card
-    └──▶ Discord thread (per alert)
-              │
-              ▼
-         Discord bot answers operator questions using stored context
-```
+![architecture diagram](media/artemis.png)
 
 When an alert is resolved:
 - Asset status is restored to `OPERATING`
